@@ -1,0 +1,18 @@
+# depslib dependency file v1.0
+1636080205 source:c:\users\yukino\desktop\test\main.cpp
+	"exchange.h"
+	"memory_pool.hpp"
+
+1636041395 c:\users\yukino\desktop\test\exchange.h
+	<iostream>
+	<math.h>
+	<vector>
+	<memory>
+	<time.h>
+	<queue>
+	<time.h>
+
+1636078666 c:\users\yukino\desktop\test\memory_pool.hpp
+	<stdint.h>
+	<mutex>
+

@@ -652,7 +652,7 @@ if __name__ == '__main__':
 
 ### python version
 
-+  結論：n=10レベルの問題なら効率よく解けるが、100レベルになると所要時間が大幅に伸びて、解けなくなった,(n=16の問題を解ける時間は0.4秒ほど、n=8の問題は0.008秒ほど)。
++  結論：n=10レベルの問題なら効率よく解けるが、100レベルになると所要時間が大幅に伸びて、解けなくなった,(n=16の問題を解ける時間は0.4秒ほど、n=8の問題は0.0036秒ほど)。
 
 ```python
 import numpy as np
@@ -1064,163 +1064,296 @@ main()
 
 # 课题4
 
-https://www.cs.drexel.edu/~jjohnson/2017-18/fall/CS270/Lectures/8/sat.pdf
+まず比較結果を示す、どちらもpythonを用いて行うこと
 
-+ 4queens sample
+| Queens_num   | 4      | 8      | 16     | 100         |
+| ------------ | ------ | ------ | ------ | ----------- |
+| 自作ソルバー | 0.0005 | 0.0036 | 0.4276 | -(解けない) |
+| SATソルバー  | 0.0001 | 0.0007 | 0.0132 | 0.9561      |
+
++ 今回使ったのはpython-satというライブラリのGlucose3ソルバーで、読み込みの形式はDIMACSの`p cnf nbvar nbcluase`を省略した以外はだいだい同じ流れです。
+
+  形式について、4 Queensを例としてあげます
 
   ```python
-  ;; Definitions of the 16 boolean variables
-  (declare-const x0y0 Bool)
-  (declare-const x0y1 Bool)
-  (declare-const x0y2 Bool)
-  (declare-const x0y3 Bool)
-  (declare-const x1y0 Bool)
-  (declare-const x1y1 Bool)
-  (declare-const x1y2 Bool)
-  (declare-const x1y3 Bool)
-  (declare-const x2y0 Bool)
-  (declare-const x2y1 Bool)
-  (declare-const x2y2 Bool)
-  (declare-const x2y3 Bool)
-  (declare-const x3y0 Bool)
-  (declare-const x3y1 Bool)
-  (declare-const x3y2 Bool)
-  (declare-const x3y3 Bool)
-  
-  ;;"at least one queen by line" clauses
-  (assert (or x0y0  x0y1  x0y2 x0y3))
-  (assert (or x1y0  x1y1  x1y2 x1y3))
-  (assert (or x2y0  x2y1  x2y2 x2y3))
-  (assert (or x3y0  x3y1  x3y2 x3y3))
-  
-  ;;"only one queen by line" clauses
-  
-  (assert (not (or(and x0y1 x0y0)(and x0y2 x0y0)(and x0y2 x0y1)(and x0y3 x0y0)(and x0y3 x0y1)(and x0y3 x0y2))))
-  (assert (not (or(and x1y1 x1y0)(and x1y2 x1y0)(and x1y2 x1y1)(and x1y3 x1y0)(and x1y3 x1y1)(and x1y3 x1y2))))
-  (assert (not (or(and x2y1 x2y0)(and x2y2 x2y0)(and x2y2 x2y1)(and x2y3 x2y0)(and x2y3 x2y1)(and x2y3 x2y2))))
-  (assert (not (or(and x3y1 x3y0)(and x3y2 x3y0)(and x3y2 x3y1)(and x3y3 x3y0)(and x3y3 x3y1)(and x3y3 x3y2))))
-  
-  ;;"only one queen by column" clauses
-  (assert (not (or(and x1y0 x0y0)(and x2y0 x0y0)(and x2y0 x1y0)(and x3y0 x0y0)(and x3y0 x1y0)(and x3y0 x2y0))))
-  (assert (not (or(and x1y1 x0y1)(and x2y1 x0y1)(and x2y1 x1y1)(and x3y1 x0y1)(and x3y1 x1y1)(and x3y1 x2y1))))
-  (assert (not (or(and x1y2 x0y2)(and x2y2 x0y2)(and x2y2 x1y2)(and x3y2 x0y2)(and x3y2 x1y2)(and x3y2 x2y2))))
-  (assert (not (or(and x1y3 x0y3)(and x2y3 x0y3)(and x2y3 x1y3)(and x3y3 x0y3)(and x3y3 x1y3)(and x3y3 x2y3))))
-  
-  ;;"only one queen by diagonal" clauses
-  (assert (not (or (and x0y0 x1y1) (and x0y0 x2y2) (and x0y0 x3y3) (and x1y1 x2y2) (and x1y1 x3y3) (and x2y2 x3y3))))
-  (assert (not (or (and x0y1 x1y2) (and x0y1 x2y3) (and x1y2 x2y3))))
-  (assert (not (or (and x0y2 x1y3))))
-  (assert (not (or (and x1y0 x2y1) (and x1y0 x3y2) (and x2y1 x3y2))))
-  (assert (not (or (and x2y0 x3y1))))
-  (assert (not (or (and x1y1 x0y0) (and x2y2 x0y0) (and x3y3 x0y0) (and x2y2 x1y1) (and x3y3 x1y1) (and x3y3 x2y2))))
-  (assert (not (or (and x1y2 x0y1) (and x2y3 x0y1) (and x2y3 x1y2))))
-  (assert (not (or (and x1y3 x0y2))))
-  (assert (not (or (and x2y1 x1y0) (and x3y2 x1y0) (and x3y2 x2y1))))
-  (assert (not (or (and x3y1 x2y0))))
-  
-  ;; Check if the generate model is satisfiable and output a model.
-  (check-sat)
-  (get-model)
+  # 行制約
+  1 2 3 4 0
+  -1 -2 0
+  -1 -3 0
+  -1 -4 0
+  -2 -3 0
+  -2 -4 0
+  -3 -4 0
+  5 6 7 8 0
+  ....
+  9 10 11 12 0
+  ....
+  13 14 15 16 0
+  ...
+  # 列制約
+  c <Column Contraints>
+  1 5 9 13 0
+  -1 -5 0
+  -1 -9 0
+  -1 -13 0
+  -5 -9 0
+  -5 -13 0
+  -9 -13 0
+  2 6 10 14 0
+  ...
+  3 7 11 15 0
+  ...
+  4 8 12 16 0
+  ...
+  # 対角線制約
+  c <Diagnoal Contraints(skewed to left)>
+  -1 -6 0
+  -1 -11 0
+  -1 -16 0
+  -6 -11 0
+  -6 -16 0
+  -11 -16 0
+  -2 -7 0
+  -2 -12 0
+  -7 -12 0
+  -5 -10 0
+  -5 -15 0
+  -10 -15 0
+  -3 -8 0
+  -9 -14 0
+  c <Diagnoal Contraints(skewed to right)>
+  -4 -7 0
+  -4 -10 0
+  -4 -13 0
+  -7 -10 0
+  -7 -13 0
+  -10 -13 0
+  -3 -6 0
+  -3 -9 0
+  -6 -9 0
+  -8 -11 0
+  -8 -14 0
+  -11 -14 0
+  -2 -5 0
+  -12 -15 0
   ```
 
-+ n queens
+## python version
 
 ```python
-import os
-import sys
-
-if len(sys.argv) < 2:
-    sys.exit('Usage: %s <problem size>' % sys.argv[0])
-
-def nl(f):
-    f.write('\n')
-
-# Output file
-filename = '%s_queens_SAT.smt2' % sys.argv[1]
-f = open(filename, 'w')
-
-N = int(sys.argv[1])
-print "Opening %s to write the SMT-LIB v2 encoding of the %i-queens problem" % (filename, N)
-
-f.write(';; Generate the definitions of the variables\n')
-for i in range(0, N):
-    for j in range(0,N):
-        f.write('(declare-const x%iy%i Bool)\n' % (i, j))
-
-f.write(';;Generate the "one queen by line" clauses\n\n')
-for i in range(0,N):
-    f.write('(assert (or')
-    for j in range(0, N-1):
-        f.write(' x%iy%i ' % (i,j))
-    f.write('x%iy%i' %(i, N-1))
-    f.write('))')
-    f.write('\n')
+import numpy as np
+import time
+from pysat.solvers import Glucose3
 
 
-f.write('\n;;Generate the "only one queen by line" clauses\n\n')
-for i in range(0,N):
-    f.write('(assert (not (or')
-    for j in range(1, N):
-        for k in range(0,j):
-            f.write('(and x%iy%i x%iy%i)' %(i,j,i,k))
-    f.write(')))')
-    nl(f)
-nl(f)
+class SATSolver:
+    def __init__(self, n):
+        self.n = n
+        self.str_array = []
 
-f.write(';;Generate the "only one queen by column" clauses\n')
-for i in range(0,N):
-    f.write('(assert (not (or')
-    for j in range(1, N):
-        for k in range(0,j):
-            f.write('(and x%iy%i x%iy%i)' %(j,i,k,i))
+    def make_n_queens_array(self):
+        return np.arange(1, self.n * self.n + 1).reshape(self.n, self.n)
 
-    f.write(')))')
-    nl(f)
-nl(f)
+    def repeat(self, alist):
+        length = len(alist)
+        for x in range(length - 1):
+            for y in range(x + 1, length):
+                self.str_array.append(str(-alist[x]) + " " + str(-alist[y]) + " 0")
 
-f.write(';;Generate the "only one queen by diagonal" clauses\n')
-for i in range(0,N-1):
-    f.write('(assert (not (or')
-    for j in range(0, N-i):
-        for k in range(1,N-j-i):
-            f.write(' (and x%iy%i x%iy%i)' %(j,i+j,j+k,i+j+k))
-    f.write(')))')
-    nl(f)
+    def row_constraints(self, board):
+        for alist in board:
+            temp_str = ' '.join(map(str, alist)) + " 0"
+            self.str_array.append(temp_str)
+            self.repeat(alist)
 
-for i in range(1,N-1):
-    f.write('(assert (not (or')
-    for j in range(0, N-i):
-        for k in range(1,N-j-i):
-            f.write(' (and x%iy%i x%iy%i)' %(i+j,j,i+j+k,j+k))
-    f.write(')))')
-    nl(f)
+    def col_constraints(self, board):
+        self.str_array.append("c <Column Contraints>")
+        self.row_constraints(board.T)
 
-for i in range(0,N-1):
-    f.write('(assert (not (or')
-    for j in range(0, N-i):
-        for k in range(1,N-j-i):
-            f.write(' (and x%iy%i x%iy%i)' %(j+k,i+j+k,j,i+j))
-    f.write(')))')
-    nl(f)
+    def diag_contraints(self, board):
+        self.str_array.append("c <Diagnoal Contraints(skewed to left)>")
+        temp_array = [np.diag(board, 0)]
+        for i in range(1, self.n - 1):
+            temp_array.extend([np.diag(board, i), np.diag(board, -i)])
+        for alist in temp_array:
+            self.repeat(alist)
+        self.str_array.append("c <Diagnoal Contraints(skewed to right)>")
+        temp_array = [np.diag(np.fliplr(board), 0)]
+        for i in range(1, self.n - 1):
+            temp_array.extend([np.diag(np.fliplr(board), i), np.diag(np.fliplr(board), -i)])
+        for alist in temp_array:
+            self.repeat(alist)
 
-for i in range(1,N-1):
-    f.write('(assert (not (or')
-    for j in range(0, N-i):
-        for k in range(1,N-j-i):
-            f.write(' (and x%iy%i x%iy%i)' %(i+j+k,j+k,i+j,j))
-    f.write(')))')
-    nl(f)
-
-nl(f)
+    def run(self):
+        board = self.make_n_queens_array()
+        self.row_constraints(board)
+        self.col_constraints(board)
+        self.diag_contraints(board)
 
 
-f.write(";; Check if the generate model is satisfiable and output a model.\n")
-f.write("(check-sat)\n")
-f.write("(get-model)\n")
-f.close()
+def execute(array):
+    g = Glucose3()
+    for sen in array:
+        g.add_clause(sen)
+    print(g.solve())
+    print(g.get_model()) # 結果を出力
 
-# solution_filename = 's%i_queens.txt' %  N
-# os.system('z3 %s > %s' % (filename, solution_filename))
-# solution_file = open(solution_filename, 'r')
+
+def read_file(path):
+    sentences = []
+    with open(path, mode='r', encoding='utf8') as f:
+        for line in f.readlines():
+            if line[0] != 'c':
+                sentences.append(list(map(int, line.strip('\n').split()))[:-1])
+    return sentences
+
+
+def make_file(array, path):
+    with open(path, 'w+') as f:
+        for lines in array:
+            f.write(lines)
+            f.write('\n')
+
+
+def main():
+    n = 100
+    path = str(n)+'_queen.txt'
+    solver = SATSolver(n)
+    solver.run()
+    make_file(solver.str_array, path)
+    array = read_file(path)
+    start = time.perf_counter()
+    execute(array)
+    print(f"process time {time.perf_counter()-start}")
+
+
+main()
 ```
+
+# 课题5
+
+| Solver\puzzle search time(s)                                 | eight01 | eight02 | eight03 |
+| ------------------------------------------------------------ | ------- | ------- | ------- |
+| Fast Downward(blind heuristic)                               | 0.63    | 0.64    | 0.63    |
+| Fast Downward(iPDB heuristic with default settings)          | 0.06    | 0.06    | 0.08    |
+| Fast Downward(landmark-cut heuristic)                        | 0.74    | 0.72    | 0.78    |
+| Fast Downward(Lazy greedy best-first search)<br />additive heuristic | 0.04    | 0.06    | 0.04    |
+| Fast Downward(Lazy greedy best-first search)<br />FF heuristic | 0.03    | 0.02    | 0.02    |
+| 自作ソルバー(python)                                         | 2.90    | 2.40    | 2.07    |
+| 自作ソルバー(C++)                                            | 0.12    | 0.19    | 0.11    |
+
+# 课题6
+
+未优化的点： 1. 适应性函数 2. pbest选择 3. r2选择，未使用储备池
+
+
+
+https://github.com/P-N-Suganthan/CEC2014
+
+[(28条消息) 优化算法——差分进化算法(DE)_null的专栏-CSDN博客_差分进化算法](https://felix.blog.csdn.net/article/details/41247753?spm=1001.2101.3001.6650.1&utm_medium=distribute.pc_relevant.none-task-blog-2~default~CTRLIST~Rate-1.pc_relevant_paycolumn_v3&depth_1-utm_source=distribute.pc_relevant.none-task-blog-2~default~CTRLIST~Rate-1.pc_relevant_paycolumn_v3&utm_relevant_index=2)
+
+[(28条消息) 多目标优化的遗传算法及其改进(浮点数编码)，对多个函数进行测试_天才在于积累-CSDN博客_schaffer函数](https://blog.csdn.net/yanguilaiwuwei/article/details/46699801)
+
+[黑盒优化简介 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/66312442)
+
+[(27条消息) 常见测试函数_千寻的博客-CSDN博客_测试函数](https://blog.csdn.net/jiang425776024/article/details/87358300)
+
+首先c源代码中input_data，M_1_D10：旋转矩阵，1表示第几个函数，10表示维度，10*10的矩阵
+
+shift_data_1: 移动后的全局最优值，代表$o$
+
+shuffle_data_1_D_10: 第1个函数，维度为10，值的含义？
+
+​								有的函数用了有的函数没用？？
+
+|                    | 轮数 | 种群大小 | 准确率(误差0.1以下) | 总时长 | 500轮每轮运行时长/s |
+| ------------------ | ---- | -------- | ------------------- | ------ | ------------------- |
+| 遗传算法           | 1000 | 200      | 99.4%               |        | 0.35                |
+| JADE(算数平均,p=1) | 500  | 200      | 100%                |        | 0.77                |
+| SHADE              | 200  | 200      | 100%                |        | 1.02                |
+
+# 论文
+
++ planning
+
+  https://www.aaai.org/Library/SOCS/socs-library.php  students papers 刚好,其他的也需要看
+
+  http://icaps22.icaps-conference.org/    载完了
+
+  https://www.aaai.org/Library/ICAPS/icaps-library.php
+
++ 进化计算
+
+  https://cec2021.mini.pw.edu.pl/
+
+  https://gecco-2021.sigevo.org/HomePage
+
+  https://ppsn2022.cs.tu-dortmund.de/
+
+# 研究方向
+
+可以适用于各种LOS函数，无需回到原点，移动之间的cost设计为距离?
+
+(加上时间限制是否可行)
+
++ Watchman问题先行研究
+
+  两篇论文：https://ojs.aaai.org/index.php/SOCS/article/view/18557/18346
+
+  https://ojs.aaai.org/index.php/ICAPS/article/view/6668/6522
+
+  基准问题测试数据集：https://movingai.com/benchmarks/grids.html
+
+  MST:[scipy.sparse.csgraph.minimum_spanning_tree — SciPy v1.8.0 Manual](https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csgraph.minimum_spanning_tree.html#:~:text=A minimum spanning tree is,New in version 0.11)
+
+## 先行研究
+
++ summary：https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.85.9494&rep=rep1&type=pdf
+
+
+
+是否存在时间限制的相关论文，如TSP问题，判断基准是什么
+
+TSPTW：https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.421.2268&rep=rep1&type=pdf
+
+TDTSP: https://link.springer.com/chapter/10.1007/0-387-23529-9_12
+
+## Socs调研
+
+[Vol. 12 No. 1 (2021): Fourteenth International Symposium on Combinatorial Search | Proceedings of the International Symposium on Combinatorial Search (aaai.org)](https://ojs.aaai.org/index.php/SOCS/issue/view/445)
+
+1. **基于矛盾的搜索 Conflict based search(在很多论文提到多次)**  MVC(minimal vertex cover)
+
+   问题可以查一下，论文先放着
+
+2. 最优算法的参数自动配置问题 irace
+
+3. 利用ML去解决搜索算法问题，如TSP问题。设计神经网络来解决这类问题
+
+   利用神经网络近似policy function以及heuristic funciton解决15puzzle问题
+
+4. 不仅要最小化代价，同时也要缩短计算时间，所以选择正确的展开节点就很重要，比起通过单纯的期待值去选择展开节点，根据belief distribution去选择更加有效（想法来自RL） metareasoning
+
+5. 同样也是meta reasoning，在蒙特卡洛树搜索等的应用，将强化学习的返回期待值替换成分布
+
+   经典问题：AE2,ACE2，在有限时间内解决问题。用meta reasoning去解决各种问题(multi-agent)，也提到了MVC
+
+6. 和1很像，提到了相同的问题(MAPF)，以及CBS，但对Multi-Agent Path Finding进行了再定义，允许agent移动部分阻碍
+
+7. new lifted heuristic based on landmark
+
+   提出了一种新的启发式函数？
+
+## icaps调研
+
+1. 启发式知识用于加速RL学习，RL的长期奖赏过于稀疏，但启发式知识可以有效解决这些问题。
+2. 利用LSTM估计还有多久能够得出答案
+
+## Gecco
+
+1. Genetic algorithm niching by (Quasi-)infinite memory
+
+   利用布隆过滤器作为存储历史，来得到更高的效率
+
+
 

@@ -4,6 +4,7 @@ void Genetic::initializePopulation() {
 	for (int i = 0; i < k; i++) {
 		for (int j = 0; j < n; j++) {
 			population.individuals[i].genes[j] = rand() % n;
+		// 4个种群，每个种群16个个体 
 		}
 		calculateFitness(population.individuals[i]);
 	}

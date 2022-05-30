@@ -13,10 +13,10 @@ private:
 	int k;//K-Groups
 	//int *queens;//棋盘状态刚好可以当作个体的基因，是一个n位0~n-1的串。
 	struct Individual {
-		int *genes;
+		int *genes; 
 		double fitness;
 	};
-	struct Population {
+	struct Population {//种群 
 		Individual *individuals;
 		Individual fittest;
 	}population;

@@ -6,7 +6,7 @@ from heapq import *
 import copy
 
 
-BLOCK_LENGTH = 5
+BLOCK_LENGTH = 3
 
 
 class State:
@@ -147,7 +147,7 @@ class PuzzleSolver:
         target.random_initialize(0)
         target_board = target.get_board()
         start = time.perf_counter()
-        loop_times = 100
+        loop_times = 10
         for i in range(loop_times):
             start_b = Board()
             start_b.random_initialize(30)
@@ -156,10 +156,10 @@ class PuzzleSolver:
             while np.allclose(cur_state.board.get_board(), target_board) is False:
                 self.next_step(cur_state)
                 cur_state = self.pq.pop_()
-            # self.print_path(cur_state)
+            self.print_path(cur_state)
 
         end = time.perf_counter()
-        print("{}times span:{:.2f}".format(loop_times, end-start))
+        print("{}times span:{:.3f}".format(loop_times, end-start))
 
 
 sol = PuzzleSolver()

@@ -37,7 +37,7 @@ class WatchmanRouteProblem:
         self.edge_list, self.nodes = {}, 0
         self.f_weight, self.f_option = params.get("f_weight"), params.get("f_option")
         self.DF_factor = params.get("DF_factor")
-        self.IW, self.WP = params.get("IW"), params.get("WP")
+        self.IW, self.WR = params.get("IW"), params.get("WR")
         self.n_agent = params.get("n_agent")
 
     def run(self, test_times):
@@ -67,6 +67,7 @@ class WatchmanRouteProblem:
         matrix[[i for i in range(length)], [i for i in range(length)]] = 0
         for pos, d in self.APSP_d.items():
             matrix[pos[0], pos[1]] = matrix[pos[1], pos[0]] = d
+        # matrix[:, -1] = np.random.randint(0, self.h*self.w//2, size=self.h*self.w)  如果给需要给特征矩阵多加一个随机特征的话
         result = KMeans(self.n_agent+1).fit_predict(matrix)  # +1 is for obstacle
         return result
 
@@ -84,7 +85,7 @@ class WatchmanRouteProblem:
         return map_.sum() == self.w*self.h
 
     def next_step(self, cur_state):
-        _, near_watchers = self.make_graph(cur_state.seen, cur_state.path, IW=self.IW, WP=self.WP, BJP_DF=self.DF_factor)
+        _, near_watchers = self.make_graph(cur_state.seen, cur_state.path, IW=self.IW, WR=self.WR, BJP_DF=self.DF_factor)
         for new_pos in near_watchers:
             new_x, new_y = self.decode(new_pos)
             path = deepcopy(self.get_APSP(cur_state.cur_pos, new_pos, distance=False))  # the path will go through
@@ -146,18 +147,18 @@ class WatchmanRouteProblem:
         return min_h
 
     def calc_MST_h(self, cur_seen, cur_path):
-        distance_matrix, _ = self.make_graph(cur_seen, cur_path, IW=self.IW, WP=self.WP,BJP_DF=self.DF_factor)
+        distance_matrix, _ = self.make_graph(cur_seen, cur_path, IW=self.IW, WR=self.WR, BJP_DF=self.DF_factor)
         # choice, result = MiniSpanTree_kruskal(graph)
         X = csr_matrix(distance_matrix)
         Tcsr = minimum_spanning_tree(X)
         return Tcsr.toarray().astype(int).sum()
 
     def calc_TSP_h(self, cur_seen, cur_path):
-        distance_matrix, _ = self.make_graph(cur_seen, cur_path, IW=self.IW, WP=self.WP, TSP=True, BJP_DF=self.DF_factor)
+        distance_matrix, _ = self.make_graph(cur_seen, cur_path, IW=self.IW, WR=self.WR, TSP=True, BJP_DF=self.DF_factor)
         permutation, distance = solve_tsp_local_search(distance_matrix)
         return int(distance % 1e5)
 
-    def make_graph(self, cur_seen, cur_path, IW=True, WP=True, TSP=False, BJP_DF=0):
+    def make_graph(self, cur_seen, cur_path, IW=True, WR=True, TSP=False, BJP_DF=0):
         """
         generate disjoint graph from cur_state
         find next state which next to agent in disjoint graph
@@ -167,6 +168,8 @@ class WatchmanRouteProblem:
         BJP_DF:
             when True Bounding the Jump Points, near_watcher whose w > DF*epsilon_s will be pruned
             epsilon_s: the cost of the edge of the closest jump point from S.location
+        WR: Weakly Redundant pivots will be moved, reduce the search size of tree
+        TSP: return matrix for TSP heuristic
         """
         agent_code = cur_path[-1]
         unseen = list(self.empty_cells - cur_seen)
@@ -185,7 +188,7 @@ class WatchmanRouteProblem:
                 for cell in temp:
                     cell_group[cell] = p
                 pivots_path[p] = self.get_APSP(agent_code, p, distance=False)
-        if WP:  # if one path include some other pivot's watcher, delete that pivot
+        if WR:  # if one path include some other pivot's watcher, delete that pivot
             deleted = []
             for p1, p_path in pivots_path.items():
                 for p2 in pivots_path:
@@ -359,17 +362,25 @@ class WatchmanRouteProblem:
         """
         return len(cur_state.seen) == len(self.empty_cells)
 
+    def plot_lines(self, mat_w, mat_h):
+        left_border = up_border = -0.5
+        right_border, down_border = mat_h-0.5, mat_w-0.5
+        plt.hlines([i-0.5 for i in range(mat_w)], left_border, right_border, color='black')
+        plt.vlines([i-0.5 for i in range(mat_h)], up_border, down_border, color='black')
+
     def visualize(self, path, class_):
         """
         see where the cell is
         """
         print(f"length:{len(path)}", path)
         plt.matshow(-self.map, cmap=plt.cm.hot)
-        for i in range(self.n_agent):
-            start_x, start_y = self.decode(self.start[i])
-            print(f"agent_{i}: {start_x, start_y}")
-            plt.text(start_y, start_x, s=f'agent{i}', fontsize='small', ha='center', va='center',
-                     color='red')
+        mat_w, mat_h = len(self.map[0]), len(self.map)
+        self.plot_lines(mat_w, mat_h)
+        # for i in range(self.n_agent):
+        #     start_x, start_y = self.decode(self.start[i])
+        #     print(f"agent_{i}: {start_x, start_y}")
+        #     plt.text(start_y, start_x, s=f'agent{i}', fontsize='small', ha='center', va='center',
+        #              color='red')
         length = len(path)
         axis_x, axis_y = [], []
         for i in range(len(class_)):
@@ -420,11 +431,11 @@ def main():
     #                 [1, 0, 0, 1, 1],
     #                 [0, 0, 1, 1, 1],
     #                 [0, 1, 1, 1, 1]])
-    path = r"C:\Users\18959\OneDrive - The University of Tokyo\research\研究内容\maps"
+    path = r"C:\Users\18959\OneDrive - The University of Tokyo\research\master_research\maps"
     files = os.listdir(path)
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",
-              "DF_factor": 2, "IW": True, "WP": True,
+              "DF_factor": 2, "IW": True, "WR": True,
               "n_agent": 3}
     # start = None  # give the pos responding to n_agent
     start = [37, 37, 37]

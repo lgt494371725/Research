@@ -65,7 +65,7 @@ class WatchmanRouteProblem:
         self.nodes = 0
 
     def run(self, test_times):
-        # self.visualize([])
+        self.visualize([])
         self.initialize()
         seen = self.LOS[self.start]
         path = [self.start]
@@ -311,12 +311,20 @@ class WatchmanRouteProblem:
         """
         return len(cur_state.seen) == len(self.empty_cells)
 
+    def plot_lines(self, mat_w, mat_h):
+        left_border = up_border = -0.5
+        right_border, down_border = mat_h-0.5, mat_w-0.5
+        plt.hlines([i-0.5 for i in range(mat_w)], left_border, right_border, color='black')
+        plt.vlines([i-0.5 for i in range(mat_h)], up_border, down_border, color='black')
+
     def visualize(self, path):
         """
         see where the cell is
         """
         print(f"length:{len(path)}", path)
         plt.matshow(-self.map, cmap=plt.cm.hot)
+        mat_w, mat_h = len(self.map[0]), len(self.map)
+        self.plot_lines(mat_w, mat_h)
         start_x, start_y = self.decode(self.start)
         plt.text(start_y, start_x, s='start', fontsize='large', ha='center', va='center')
         length = len(path)
@@ -357,24 +365,24 @@ def main():
     #                 [0, 1, 1, 0],
     #                 [0, 0, 0, 0]])
     # start = (2, 1)
-    # map = np.array([[0, 0, 0, 0, 0],
-    #                 [1, 1, 0, 1, 1],
-    #                 [0, 0, 0, 0, 0],
-    #                 [0, 1, 1, 1, 0],
-    #                 [0, 1, 0, 0, 0]])
-    # start = (4, 0)
+    map = np.array([[0, 0, 0, 0, 0],
+                    [1, 1, 0, 1, 1],
+                    [0, 0, 0, 0, 0],
+                    [0, 1, 1, 1, 0],
+                    [0, 1, 0, 0, 0]])
+    start = (4, 0)
     # map = np.array([[1, 1, 0, 0, 0],
     #                 [1, 1, 0, 0, 1],
     #                 [1, 0, 0, 1, 1],
     #                 [0, 0, 1, 1, 1],
     #                 [0, 1, 1, 1, 1]])
     # start = (4, 0)
-    path = "../../research/master_research/maps"
+    path = "../maps"
     files = os.listdir(path)
     os.chdir(path)
     for file in files:
         print(file)
-        start, map = read_map(file)
+        # start, map = read_map(file)
         test_times = 1
         sol = WatchmanRouteProblem(map, start)
         sol.run(test_times)

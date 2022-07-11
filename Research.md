@@ -1290,6 +1290,21 @@ shuffle_data_1_D_10: 第1个函数，维度为10，值的含义？
 
   https://ppsn2022.cs.tu-dortmund.de/
 
+$$
+P:(M,S,L,A)
+\\M:grid\;map
+\\S:start\;point
+\\L:Line\;of\;Sight(LOS)\;Function\;like\;4-way\;LOS;8-way\;LOS
+\\A:the\;action\;watchman\;can\;choose:1-cell\;movement
+$$
+
+
+
+$$
+Green:current\;position,\;Gray:the\;cells\;have\;been\;seen,\;Red:pivot
+\\Yellow:LOS\;of\;pivot,\;White:the\;cells\;have\;been\;ignored\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;
+$$
+
 # 研究方向
 
 可以适用于各种LOS函数，无需回到原点，移动之间的cost设计为距离?

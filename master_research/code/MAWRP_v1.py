@@ -1,6 +1,7 @@
 """
 将LOS等方法单独放入文件中
-增加n_agent, 初始化多agent
+增加n_agent, 初始化多agent, 多人可视化实装
+必须指定start的版本
 """
 from package import *
 
@@ -13,7 +14,16 @@ class State:
         self.A_star_v = A_star_v
 
 
-class WatchmanRouteProblem:
+class Watchman:
+    def __init__(self, start):
+        self.start = start
+        self.pq = PriorityQueue()
+        self.empty_cells = set()
+        self.seen = set()
+        self.unseen = set()
+
+
+class MWRP:
     """
     map: 1 means obstacle, 0 means empty cell
     start: start position
@@ -31,19 +41,20 @@ class WatchmanRouteProblem:
     def __init__(self, map_, start, **params):
         self.map = map_
         self.h, self.w = len(self.map), len(self.map[0])
-        self.start = start
-        self.pq, self.empty_cells = PriorityQueue(), set()
+        self.n_agent = params.get("n_agent")
+        self.watchmen = [Watchman(start[i]) for i in range(self.n_agent)]
+        self.empty_cells = set()
         self.LOS, self.APSP, self.APSP_d = {}, {}, {}
         self.edge_list, self.nodes = {}, 0
         self.f_weight, self.f_option = params.get("f_weight"), params.get("f_option")
         self.DF_factor = params.get("DF_factor")
         self.IW, self.WR = params.get("IW"), params.get("WR")
-        self.n_agent = params.get("n_agent")
 
     def run(self, test_times):
         self.initialize()
         class_ = self.clustering()
-        self.visualize([], class_=class_)
+        self.watchmen_init()
+        # self.visualize([], class_=class_)
         # seen = self.LOS[self.start]
         # path = [self.start]
         print("LOS:", self.LOS)
@@ -60,6 +71,9 @@ class WatchmanRouteProblem:
         #     seen = self.LOS[self.start]
         #     path = [self.start]
         # print("running time:{} s, expanding nodes:{}".format(time.perf_counter() - start, self.nodes))
+
+    def watchmen_init(self):
+        pass
 
     def clustering(self):
         matrix = np.zeros((self.h*self.w, self.h*self.w))-1
@@ -85,7 +99,8 @@ class WatchmanRouteProblem:
         return map_.sum() == self.w*self.h
 
     def next_step(self, cur_state):
-        _, near_watchers = self.make_graph(cur_state.seen, cur_state.path, IW=self.IW, WR=self.WR, BJP_DF=self.DF_factor)
+        _, near_watchers = self.make_graph(cur_state.seen, cur_state.path,
+                                           IW=self.IW, WR=self.WR, BJP_DF=self.DF_factor)
         for new_pos in near_watchers:
             new_x, new_y = self.decode(new_pos)
             path = deepcopy(self.get_APSP(cur_state.cur_pos, new_pos, distance=False))  # the path will go through
@@ -288,6 +303,7 @@ class WatchmanRouteProblem:
     def initialize(self):
         """
         prepare two lookup tables for efficiency
+        self.LOS, self.empty_cells, self.APSP, self.APSP_d, self.edge_list
         """
         for x in range(self.h):
             for y in range(self.w):
@@ -318,8 +334,8 @@ class WatchmanRouteProblem:
                                 self.edge_list[end] = [start]
                             else:
                                 self.edge_list[end].append(start)
-        if not self.start:
-            self.start = np.random.choice(list(self.empty_cells), self.n_agent, replace=False)
+        # if not self.start:
+        #     self.start = np.random.choice(list(self.empty_cells), self.n_agent, replace=False)
 
     def minimum_d(self, start, end):
         """
@@ -368,35 +384,41 @@ class WatchmanRouteProblem:
         plt.hlines([i-0.5 for i in range(mat_w)], left_border, right_border, color='black')
         plt.vlines([i-0.5 for i in range(mat_h)], up_border, down_border, color='black')
 
-    def visualize(self, path, class_):
+    def visualize(self, paths, class_):
         """
         see where the cell is
         """
-        print(f"length:{len(path)}", path)
         plt.matshow(-self.map, cmap=plt.cm.hot)
         mat_w, mat_h = len(self.map[0]), len(self.map)
         self.plot_lines(mat_w, mat_h)
-        # for i in range(self.n_agent):
-        #     start_x, start_y = self.decode(self.start[i])
-        #     print(f"agent_{i}: {start_x, start_y}")
-        #     plt.text(start_y, start_x, s=f'agent{i}', fontsize='small', ha='center', va='center',
-        #              color='red')
-        length = len(path)
+
+        # plot cluster
         axis_x, axis_y = [], []
         for i in range(len(class_)):
             x, y = self.decode(i)
             axis_x.append(x)
             axis_y.append(y)
         plt.scatter(axis_y, axis_x, c=class_, s=100, alpha=0.4)  # attention! x and y are reversed!
-        for i in range(length - 1):
-            x_1, y_1 = self.decode(path[i])
-            x_2, y_2 = self.decode(path[i+1])
-            dx_ = x_2 - x_1
-            dy_ = y_2 - y_1
-            plt.arrow(y_1, x_1, dx=dy_, dy=dx_, width=0.01, ec='red', alpha=1,
-                      fc='red',
-                      head_width=0.2,
-                      length_includes_head=True)  # 坐标系位置和矩阵cell位置表示是相反的
+
+        # plot path for every agent
+        for i, path in enumerate(paths):
+            color = plt.cm.Set1(i)
+            length = len(path)
+            print(f"length:{length}")
+            start_x, start_y = self.decode(path[0])
+            # print(f"start:{start_x},{start_y}")
+            plt.text(start_y, start_x, s=f'S{i}', fontsize='x-large', ha='center', va='center',
+                     color=color)
+
+            for j in range(length - 1):
+                x_1, y_1 = self.decode(path[j])
+                x_2, y_2 = self.decode(path[j+1])
+                dx_ = x_2 - x_1
+                dy_ = y_2 - y_1
+                plt.arrow(y_1, x_1, dx=dy_, dy=dx_, width=0.01, ec=color, alpha=1,
+                          fc=color,
+                          head_width=0.2,
+                          length_includes_head=True)  # 坐标系位置和矩阵cell位置表示是相反的
         plt.show()
 
 
@@ -431,19 +453,19 @@ def main():
     #                 [1, 0, 0, 1, 1],
     #                 [0, 0, 1, 1, 1],
     #                 [0, 1, 1, 1, 1]])
-    path = r"C:\Users\18959\OneDrive - The University of Tokyo\research\master_research\maps"
+    path = r"..\maps"
     files = os.listdir(path)
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WR": True,
               "n_agent": 3}
     # start = None  # give the pos responding to n_agent
-    start = [37, 37, 37]
+    start = [0, 33, 120]
     for file in files:
         print(file)
         map = read_map(file)
         test_times = 1
-        sol = WatchmanRouteProblem(map, start, **params)
+        sol = MWRP(map, start, **params)
         sol.run(test_times)
         break
 

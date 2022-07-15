@@ -1,26 +1,29 @@
 """
-将LOS等方法单独放入文件中
-增加n_agent, 初始化多agent, 多人可视化实装
-必须指定start的版本
+version 1.2
+指定start会被分配到最近的cluster
+实现A*探索中的low-level
 """
 from package import *
+from WRP_solver import WatchmanRouteProblem
 
 
 class State:
-    def __init__(self, path, seen, A_star_v=0):
-        self.path = path
-        self.cur_pos = path[-1]
-        self.seen = seen
-        self.A_star_v = A_star_v
+    def __init__(self, watchmen):
+        self.watchmen = watchmen
+        self.A_star_v_l2 = 0  # higher level
+
+    def is_all_finish(self):
+        return all([w.is_finish() for w in self.watchmen])
+
+    def get_paths(self):
+        return [w.path for w in self.watchmen]
 
 
 class Watchman:
-    def __init__(self, start):
-        self.start = start
-        self.pq = PriorityQueue()
+    def __init__(self):
+        self.start = None
         self.empty_cells = set()
-        self.seen = set()
-        self.unseen = set()
+        self.edge_list = {}
 
 
 class MWRP:
@@ -39,41 +42,87 @@ class MWRP:
     """
 
     def __init__(self, map_, start, **params):
+        self.params = params
         self.map = map_
         self.h, self.w = len(self.map), len(self.map[0])
         self.n_agent = params.get("n_agent")
-        self.watchmen = [Watchman(start[i]) for i in range(self.n_agent)]
+        self.watchmen = [Watchman() for i in range(self.n_agent)]
         self.empty_cells = set()
+        self.start = start
         self.LOS, self.APSP, self.APSP_d = {}, {}, {}
         self.edge_list, self.nodes = {}, 0
-        self.f_weight, self.f_option = params.get("f_weight"), params.get("f_option")
-        self.DF_factor = params.get("DF_factor")
-        self.IW, self.WR = params.get("IW"), params.get("WR")
+        self.pq_l2 = PriorityQueue()
 
-    def run(self, test_times):
+    def run(self):
         self.initialize()
         class_ = self.clustering()
-        self.watchmen_init()
+        paths = []
+        self.watchmen_init(class_)
         # self.visualize([], class_=class_)
-        # seen = self.LOS[self.start]
-        # path = [self.start]
-        print("LOS:", self.LOS)
-        print("APSP_d:", self.APSP_d)
-        # start = time.perf_counter()
-        # for i in range(test_times):
-        #     cur_state = State(path, seen)
-        #     while not self.is_finish(cur_state):
-        #         # self.visualize(cur_state.path)
-        #         self.next_step(cur_state)
-        #         cur_state = self.pq.pop_()
-        #     self.visualize(cur_state.path)
-        #     assert self.check_finish(cur_state.path), "路径有误！"
-        #     seen = self.LOS[self.start]
-        #     path = [self.start]
-        # print("running time:{} s, expanding nodes:{}".format(time.perf_counter() - start, self.nodes))
+        start = time.perf_counter()
+        for w in self.watchmen:
+            temp_params = self.params
+            temp_params['empty_cells'] = w.empty_cells
+            temp_params['edge_list'] = w.edge_list
+            print(w.start)
+            print(w.edge_list)
+            sol = WatchmanRouteProblem(self.map, w.start, **temp_params)
+            result = sol.run()
+            paths.append(result)
+        self.visualize(paths, class_=class_)
+        # cur_state = State(self.watchmen)
+        # while not cur_state.is_all_finish():  # 中止条件不对,改为一定时间内如果2-layer A* 没有提升就停止
+        #     # self.visualize(cur_state.path)
+        #     self.next_step(cur_state)
+        #     cur_state = self.pq_l2.pop_()
+        # self.visualize(cur_state.get_paths(), class_=class_)
+        # assert self.check_finish(cur_state.get_paths()), "路径有误！"
+        print("running time:{} s, expanding nodes:{}".format(time.perf_counter() - start, self.nodes))
 
-    def watchmen_init(self):
-        pass
+    def watchmen_init(self, class_):
+        n_class = len(set(class_))
+        cur_class = 0
+        selected = [0 for i in range(self.n_agent)]  # for designating start point
+        for i in range(n_class):
+            class_idx = np.where(class_ == i)[0]  # 外面包了一层元组类型,需要去掉
+            if not self.is_obstacle(class_idx[0]):
+                temp_watchman = self.watchmen[cur_class]
+                temp_empty_cells = set(class_idx)  # convert to set type
+                temp_watchman.empty_cells = temp_empty_cells
+                # edge_list
+                temp_edge_list = dict()
+                for key, value in self.edge_list.items():
+                    if key in temp_empty_cells:
+                        temp_edge_list[key] = self.edge_list[key]
+                        temp_edge_list[key] = list(set(temp_edge_list[key]) & temp_empty_cells)
+                temp_watchman.edge_list = temp_edge_list
+                # start point
+                samples = np.random.choice(list(temp_empty_cells), len(temp_empty_cells)//3)
+                min_idx = -1  # which start point is the closest to the cluster
+                avg_d = float('inf')  # calc average distance between start point and cluster
+                for n in range(self.n_agent):
+                    if selected[n] == 1:
+                        continue
+                    start_code = self.encode(self.start[n][0], self.start[n][1])
+                    distance_to_start = [self.get_APSP(start_code, c, distance=True) for c in samples]
+                    new_avg_d = np.average(distance_to_start)
+                    if new_avg_d < avg_d:
+                        avg_d = new_avg_d
+                        min_idx = n
+                temp_watchman.start = self.start[min_idx]
+                selected[min_idx] = 1
+                cur_class += 1
+
+    # def synchro(self, watchmen):  # 不考虑每走一步都同步，2-layer search足够
+    #     seen = set()
+    #     for w in watchmen:
+    #         seen = seen | w.seen
+    #     for w in watchmen:
+    #         w.add_seen(seen)
+
+    def is_obstacle(self, code):
+        x, y = self.decode(code)
+        return self.map[x, y] == 1
 
     def clustering(self):
         matrix = np.zeros((self.h*self.w, self.h*self.w))-1
@@ -83,22 +132,26 @@ class MWRP:
             matrix[pos[0], pos[1]] = matrix[pos[1], pos[0]] = d
         # matrix[:, -1] = np.random.randint(0, self.h*self.w//2, size=self.h*self.w)  如果给需要给特征矩阵多加一个随机特征的话
         result = KMeans(self.n_agent+1).fit_predict(matrix)  # +1 is for obstacle
-        return result
+        return np.array(result)
 
-    def check_finish(self, path):
+    def check_finish(self, paths):
         map_ = self.map.copy()
         axis_x = []
         axis_y = []
-        for pos in path:
-            sights = self.LOS[pos]
-            for sight in sights:
-                x, y = self.decode(sight)
-                axis_x.append(x)
-                axis_y.append(y)
-        map_[axis_x, axis_y] = 1
+        for path in paths:
+            for pos in path:
+                sights = self.LOS[pos]
+                for sight in sights:
+                    x, y = self.decode(sight)
+                    axis_x.append(x)
+                    axis_y.append(y)
+            map_[axis_x, axis_y] = 1
         return map_.sum() == self.w*self.h
 
     def next_step(self, cur_state):
+        """
+        每个watchman都要准备好下一步，推入pq_l1,pq_l1的队中元素是watchman class
+        """
         _, near_watchers = self.make_graph(cur_state.seen, cur_state.path,
                                            IW=self.IW, WR=self.WR, BJP_DF=self.DF_factor)
         for new_pos in near_watchers:
@@ -138,167 +191,12 @@ class MWRP:
     def decode(self, code):
         return code // self.w, code % self.w
 
-    def calc_agg_h(self, seen, path):
-        unseen = self.empty_cells - seen
-        cur_location = path[-1]
-        agg_h = float('-inf')
-        for p in unseen:
-            single_h = self.singleton_h(cur_location, p)
-            agg_h = max(agg_h, single_h)
-        return agg_h
-
-    def singleton_h(self, cur_location, p):
-        """
-        cur_location: where agent is
-        :param p: one cell from unseen
-        """
-        cells = self.LOS[p]
-        min_h = float('inf')
-        for cell in cells:
-            a, b = cur_location, cell
-            if a > b:
-                a, b = b, a
-            min_h = min(min_h, self.APSP_d.get((a, b), float('inf')))
-        return min_h
-
-    def calc_MST_h(self, cur_seen, cur_path):
-        distance_matrix, _ = self.make_graph(cur_seen, cur_path, IW=self.IW, WR=self.WR, BJP_DF=self.DF_factor)
-        # choice, result = MiniSpanTree_kruskal(graph)
-        X = csr_matrix(distance_matrix)
-        Tcsr = minimum_spanning_tree(X)
-        return Tcsr.toarray().astype(int).sum()
-
-    def calc_TSP_h(self, cur_seen, cur_path):
-        distance_matrix, _ = self.make_graph(cur_seen, cur_path, IW=self.IW, WR=self.WR, TSP=True, BJP_DF=self.DF_factor)
-        permutation, distance = solve_tsp_local_search(distance_matrix)
-        return int(distance % 1e5)
-
-    def make_graph(self, cur_seen, cur_path, IW=True, WR=True, TSP=False, BJP_DF=0):
-        """
-        generate disjoint graph from cur_state
-        find next state which next to agent in disjoint graph
-        next_step: when True, need to return near_watchers and need to considering white cell,
-                   when False, return graph and ignore white and gray cell
-        IW: if True white cells will be ignored
-        BJP_DF:
-            when True Bounding the Jump Points, near_watcher whose w > DF*epsilon_s will be pruned
-            epsilon_s: the cost of the edge of the closest jump point from S.location
-        WR: Weakly Redundant pivots will be moved, reduce the search size of tree
-        TSP: return matrix for TSP heuristic
-        """
-        agent_code = cur_path[-1]
-        unseen = list(self.empty_cells - cur_seen)
-        unseen.sort(key=lambda x: len(self.LOS[x]))  # |LOS4| ascending order
-        pivots, watcher = [agent_code], set()
-        cell_group = {}  # the component where cell from
-        near_watchers, near_watchers_APSP_d = [], []  # the watcher close to agent, next step
-        # decide which cell to be pivot
-        pivots_path = {}  # the path from pos of agent to pivot
-        for p in unseen:
-            if not (self.LOS[p] & watcher):  # if no replicate, new pivot
-                pivots.append(p)
-                temp = self.LOS[p]
-                # temp.remove(p)  # 除去pivot本身
-                watcher = watcher | temp  # here watcher including pivot itself
-                for cell in temp:
-                    cell_group[cell] = p
-                pivots_path[p] = self.get_APSP(agent_code, p, distance=False)
-        if WR:  # if one path include some other pivot's watcher, delete that pivot
-            deleted = []
-            for p1, p_path in pivots_path.items():
-                for p2 in pivots_path:
-                    if p1 == p2 or p1 in deleted or p2 in deleted:
-                        continue
-                    p2_watcher = self.LOS[p2]
-                    if set(p_path) & p2_watcher:
-                        deleted.append(p2)
-                        pivots.remove(p2)
-                        watcher = watcher-p2_watcher
-                        for cell in p2_watcher:
-                            cell_group.pop(cell)
-        cell_group[agent_code] = agent_code
-        unreached = self.empty_cells - set(cell_group.keys())  # gray or white cell
-        if not IW:  # need to consider white cell which means not in cur_seen
-            white_cells = set()
-            for cell in unreached:
-                if cell not in cur_seen:
-                    white_cells.add(cell)
-            unreached = unreached-white_cells  # leave only gray cells in it
-            while white_cells:
-                p = white_cells.pop()
-                pivots.append(p)
-                temp = self.LOS[p] & (white_cells | {p})
-                watcher = watcher | temp
-                for cell in temp:
-                    cell_group[cell] = p
-                white_cells = white_cells-temp
-        edge_list = self.compact_edge(unreached)
-        edge_map = {edge: num for num, edge in enumerate(edge_list)}  # simplify the matrix size
-        distance_matrix = np.zeros((len(edge_map), len(edge_map)))
-        for edge_num in edge_list.keys():
-            link_edges = edge_list[edge_num]
-            group_a = cell_group[edge_num]
-            map_edge_num = edge_map[edge_num]
-            for link_edge in link_edges:
-                group_b = cell_group[link_edge]
-                map_link_edge = edge_map[link_edge]
-                if group_a == group_b:  # belong to the same component
-                    distance_matrix[map_edge_num, map_link_edge] = 1e-2
-                else:
-                    APSP_d = self.get_APSP(edge_num, link_edge, distance=True)
-                    distance_matrix[map_edge_num, map_link_edge] = APSP_d
-                    if edge_num == agent_code:
-                        near_watchers.append(link_edge)
-                        near_watchers_APSP_d.append(APSP_d)
-        if BJP_DF and near_watchers_APSP_d:  # not NULL
-            epsilon_s = min(near_watchers_APSP_d)
-            temp = []
-            for i in range(len(near_watchers_APSP_d)):
-                if near_watchers_APSP_d[i] <= BJP_DF * epsilon_s:
-                    temp.append(near_watchers[i])
-            near_watchers = temp
-        if TSP:
-            APSP_m = self.floyd_APSP(distance_matrix)
-            pivots_map = [edge_map[i] for i in pivots]   # 各个pivot对应的map
-            # 构建只有pivots节点的距离矩阵
-            matrix_for_pivot = APSP_m[pivots_map][:, pivots_map]  # 取出pivots对应的行和列, pivots第一个元素是agent位置
-            # 所以该矩阵的第一行一定是agent
-            m_len = len(matrix_for_pivot)
-            tsp_m = np.zeros((m_len+1, m_len+1))
-            tsp_m[:m_len, :m_len] = matrix_for_pivot
-            tsp_m[m_len, :] = tsp_m[:, m_len] = [1e-2]+[1e5]*m_len
-            return tsp_m, near_watchers
-        else:
-            return distance_matrix, near_watchers
-
-    def floyd_APSP(self, distance_matrix):
-        m = deepcopy(distance_matrix)
-        length = len(m)
-        for k in range(length):
-            for v in range(length):
-                for w in range(length):
-                    if v != w and m[v][k] > 0 and m[k][w] > 0 and (m[v][w] > m[v][k] + m[k][w] or m[v][w] == 0):
-                        m[v][w] = m[v][k] + m[k][w]
-        return m
-
     def get_APSP(self, a, b, distance=True):
         if a > b:
             a, b = b, a
+        elif a == b:
+            return 0
         return self.APSP_d[(a, b)] if distance else self.APSP[(a, b)]
-
-    def compact_edge(self, need_to_compact):
-        """
-        compact cells in need_to_compact
-        """
-        edge_list = deepcopy(self.edge_list)
-        for code in need_to_compact:
-            temp = edge_list.pop(code)  # delete cell from edge_list
-            for edge_num in temp:
-                to_be_add = [i for i in temp if i != edge_num]
-                edge_list[edge_num].remove(code)  # delete cell
-                edge_list[edge_num].extend(to_be_add)
-                edge_list[edge_num] = list(set(edge_list[edge_num]))  # prevent duplicates
-        return edge_list
 
     def initialize(self):
         """
@@ -334,8 +232,11 @@ class MWRP:
                                 self.edge_list[end] = [start]
                             else:
                                 self.edge_list[end].append(start)
-        # if not self.start:
-        #     self.start = np.random.choice(list(self.empty_cells), self.n_agent, replace=False)
+        self.params["LOS"] = self.LOS
+        self.params["empty_cells"] = self.empty_cells
+        self.params["APSP"] = self.APSP
+        self.params["APSP_d"] = self.APSP_d
+        self.params["edge_list"] = self.edge_list
 
     def minimum_d(self, start, end):
         """
@@ -370,13 +271,6 @@ class MWRP:
                     q.append((new_x, new_y, d + 1))
                     pre_step[self.encode(new_x, new_y)] = self.encode(x, y)
         return
-
-    def is_finish(self, cur_state):
-        """
-        all empty cells have been added in seen
-        :return:
-        """
-        return len(cur_state.seen) == len(self.empty_cells)
 
     def plot_lines(self, mat_w, mat_h):
         left_border = up_border = -0.5
@@ -438,35 +332,20 @@ def read_map(path):
 
 
 def main():
-    # map = np.array([[1, 0, 0, 0],
-    #                 [1, 0, 1, 1],
-    #                 [0, 0, 0, 0],
-    #                 [0, 1, 1, 0],
-    #                 [0, 0, 0, 0]])
-    # map = np.array([[0, 0, 0, 0, 0],
-    #                 [1, 1, 0, 1, 1],
-    #                 [0, 0, 0, 0, 0],
-    #                 [0, 1, 1, 1, 0],
-    #                 [0, 1, 0, 0, 0]])
-    # map = np.array([[1, 1, 0, 0, 0],
-    #                 [1, 1, 0, 0, 1],
-    #                 [1, 0, 0, 1, 1],
-    #                 [0, 0, 1, 1, 1],
-    #                 [0, 1, 1, 1, 1]])
     path = r"..\maps"
     files = os.listdir(path)
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WR": True,
-              "n_agent": 3}
+              "n_agent": 3, "heuristic": "MST"}    # TSP,MST,agg_h, None
     # start = None  # give the pos responding to n_agent
-    start = [0, 33, 120]
+    start = [(0, 0), (3, 0), (10,10)]
     for file in files:
         print(file)
         map = read_map(file)
-        test_times = 1
         sol = MWRP(map, start, **params)
-        sol.run(test_times)
+        sol.run()
         break
+
 
 main()

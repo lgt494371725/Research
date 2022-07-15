@@ -2,11 +2,12 @@ from .GRAPH import Graph
 from .GRAPH import Vertex
 from .LOS import LOS4, LOS8
 from .MST_kruskal import MiniSpanTree_kruskal
+import time
 import numpy as np
 import math
 import os
 from copy import deepcopy
-from collections import deque
+from collections import deque, defaultdict
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import minimum_spanning_tree
 import matplotlib.pyplot as plt

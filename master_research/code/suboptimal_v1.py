@@ -521,7 +521,7 @@ def main():
     #                 [0, 0, 1, 1, 1],
     #                 [0, 1, 1, 1, 1]])
     # start = (4, 0)
-    path = r"C:\Users\18959\OneDrive - The University of Tokyo\research\研究内容\maps"
+    path = r"../maps"
     files = os.listdir(path)
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",

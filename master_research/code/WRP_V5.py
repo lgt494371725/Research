@@ -119,8 +119,8 @@ class WatchmanRouteProblem:
             cur_seen = temp_state.seen
             for cell in path:
                 cur_seen = cur_seen | self.LOS[cell]
-            # h_value = self.calc_MST_h(cur_seen, cur_path)
-            h_value = 0
+            h_value = self.calc_MST_h(cur_seen, cur_path)
+            # h_value = 0
             # h_value = self.calc_agg_h(cur_seen, cur_path)
             A_star_v = h_value + len(cur_path)
             self.pq.push_(State(cur_path, cur_seen, A_star_v))
@@ -453,7 +453,7 @@ def main():
     #                 [0, 0, 1, 1, 1],
     #                 [0, 1, 1, 1, 1]])
     # start = (4, 0)
-    path = "../../research/master_research/maps"
+    path = "../maps"
     files = os.listdir(path)
     os.chdir(path)
     for file in files:

@@ -1,9 +1,3 @@
-"""
-增加f的计算方法
-增加Ignore White Cells 选项 （IW）
-增加Bounding the Jump Points 选项
-增加weakly pivot选项（正确性待验证）
-"""
 from package import *
 
 
@@ -48,17 +42,22 @@ class WatchmanRouteProblem:
 
     def run(self):
         seen = self.add_seen(set(), self.LOS[self.start])
-        path = [self.start]
+        start_path = [self.start]
         start = time.perf_counter()
-        cur_state = State(path, seen)
+        cur_state = State(start_path, seen)
         while not self.is_finish(cur_state):
             self.next_step(cur_state)
             cur_state = self.pq.pop_()
-        print("running time:{} s, expanding nodes:{}".format(time.perf_counter() - start, self.nodes))
+        print(
+            "running time:{} s, expanding nodes:{}, start point:{}, path length: {}".format(time.perf_counter() - start,
+                                                                                            self.nodes,
+                                                                                            self.decode(self.start),
+                                                                                            len(cur_state.path)))
         return cur_state.path
 
     def next_step(self, cur_state):
-        _, near_watchers = self.make_graph(cur_state.seen, cur_state.path, IW=self.IW, WR=self.WR, BJP_DF=self.DF_factor)
+        _, near_watchers = self.make_graph(cur_state.seen, cur_state.path, IW=self.IW, WR=self.WR,
+                                           BJP_DF=self.DF_factor)
         for new_pos in near_watchers:
             new_x, new_y = self.decode(new_pos)
             path = deepcopy(self.get_APSP(cur_state.cur_pos, new_pos, distance=False))  # the path will go through
@@ -87,11 +86,11 @@ class WatchmanRouteProblem:
 
     def calc_A_stat_v(self, g, h, w=1, option="WA"):
         if option == "WA":
-            return g+w*h
+            return g + w * h
         elif option == "XDP":
-            return 1/(2*w)*(g+(2*w-1)*h+math.sqrt((g-h)**2+4*w*g*h))
+            return 1 / (2 * w) * (g + (2 * w - 1) * h + math.sqrt((g - h) ** 2 + 4 * w * g * h))
         elif option == "XUP":
-            return 1/(2*w)*(g+h+math.sqrt((g+h)**2+4*w*(w-1)*h*h))
+            return 1 / (2 * w) * (g + h + math.sqrt((g + h) ** 2 + 4 * w * (w - 1) * h * h))
 
     def encode(self, x, y):
         return x * self.w + y
@@ -130,7 +129,8 @@ class WatchmanRouteProblem:
         return Tcsr.toarray().astype(int).sum()
 
     def calc_TSP_h(self, cur_seen, cur_path):
-        distance_matrix, _ = self.make_graph(cur_seen, cur_path, IW=self.IW, WR=self.WR, TSP=True, BJP_DF=self.DF_factor)
+        distance_matrix, _ = self.make_graph(cur_seen, cur_path, IW=self.IW, WR=self.WR, TSP=True,
+                                             BJP_DF=self.DF_factor)
         permutation, distance = solve_tsp_local_search(distance_matrix)
         return int(distance % 1e5)
 
@@ -174,7 +174,7 @@ class WatchmanRouteProblem:
                     if set(p_path) & p2_watcher:
                         deleted.append(p2)
                         pivots.remove(p2)
-                        watcher = watcher-p2_watcher
+                        watcher = watcher - p2_watcher
                         for cell in p2_watcher:
                             cell_group.pop(cell)
         cell_group[agent_code] = agent_code
@@ -184,7 +184,7 @@ class WatchmanRouteProblem:
             for cell in unreached:
                 if cell not in cur_seen:
                     white_cells.add(cell)
-            unreached = unreached-white_cells  # leave only gray cells in it
+            unreached = unreached - white_cells  # leave only gray cells in it
             while white_cells:
                 p = white_cells.pop()
                 pivots.append(p)
@@ -192,7 +192,7 @@ class WatchmanRouteProblem:
                 watcher = watcher | temp
                 for cell in temp:
                     cell_group[cell] = p
-                white_cells = white_cells-temp
+                white_cells = white_cells - temp
         edge_list = self.compact_edge(unreached)
         edge_map = {edge: num for num, edge in enumerate(edge_list)}  # simplify the matrix size
         distance_matrix = np.zeros((len(edge_map), len(edge_map)))
@@ -220,14 +220,14 @@ class WatchmanRouteProblem:
             near_watchers = temp
         if TSP:
             APSP_m = self.floyd_APSP(distance_matrix)
-            pivots_map = [edge_map[i] for i in pivots]   # 各个pivot对应的map
+            pivots_map = [edge_map[i] for i in pivots]  # 各个pivot对应的map
             # 构建只有pivots节点的距离矩阵
             matrix_for_pivot = APSP_m[pivots_map][:, pivots_map]  # 取出pivots对应的行和列, pivots第一个元素是agent位置
             # 所以该矩阵的第一行一定是agent
             m_len = len(matrix_for_pivot)
-            tsp_m = np.zeros((m_len+1, m_len+1))
+            tsp_m = np.zeros((m_len + 1, m_len + 1))
             tsp_m[:m_len, :m_len] = matrix_for_pivot
-            tsp_m[m_len, :] = tsp_m[:, m_len] = [1e-2]+[1e5]*m_len
+            tsp_m[m_len, :] = tsp_m[:, m_len] = [1e-2] + [1e5] * m_len
             return tsp_m, near_watchers
         else:
             return distance_matrix, near_watchers
@@ -267,4 +267,3 @@ class WatchmanRouteProblem:
         :return:
         """
         return len(cur_state.seen) == len(self.empty_cells)
-

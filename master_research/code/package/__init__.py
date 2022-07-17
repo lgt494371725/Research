@@ -14,3 +14,4 @@ import matplotlib.pyplot as plt
 from python_tsp.heuristics import solve_tsp_local_search
 from sklearn.cluster import KMeans
 from .PQ import PriorityQueue
+from joblib import Parallel, delayed

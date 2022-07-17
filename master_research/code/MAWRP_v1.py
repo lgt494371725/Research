@@ -2,6 +2,8 @@
 version 1.2
 指定start会被分配到最近的cluster
 实现A*探索中的low-level
+plot lines bug修复
+路径探索部分并发
 """
 from package import *
 from WRP_solver import WatchmanRouteProblem
@@ -53,19 +55,27 @@ class MWRP:
         self.edge_list, self.nodes = {}, 0
         self.pq_l2 = PriorityQueue()
 
+    def WRP_solve(self, watchman):
+        temp_params = self.params
+        temp_params['empty_cells'] = watchman.empty_cells
+        temp_params['edge_list'] = watchman.edge_list
+        sol = WatchmanRouteProblem(self.map, watchman.start, **temp_params)
+        return sol.run()
+
     def run(self):
+        start = time.perf_counter()
         self.initialize()
+        initial_time = time.perf_counter() - start
+        print("initialization complete! time:{} s,".format(initial_time))
         class_ = self.clustering()
         paths = []
         self.watchmen_init(class_)
         # self.visualize([], class_=class_)
-        start = time.perf_counter()
+        # paths = Parallel(n_jobs=self.n_agent)(delayed(self.WRP_solve)(w) for w in self.watchmen)
         for w in self.watchmen:
             temp_params = self.params
             temp_params['empty_cells'] = w.empty_cells
             temp_params['edge_list'] = w.edge_list
-            print(w.start)
-            print(w.edge_list)
             sol = WatchmanRouteProblem(self.map, w.start, **temp_params)
             result = sol.run()
             paths.append(result)
@@ -77,7 +87,11 @@ class MWRP:
         #     cur_state = self.pq_l2.pop_()
         # self.visualize(cur_state.get_paths(), class_=class_)
         # assert self.check_finish(cur_state.get_paths()), "路径有误！"
-        print("running time:{} s, expanding nodes:{}".format(time.perf_counter() - start, self.nodes))
+        end_time = time.perf_counter()
+        print("total time:{}s,path finding time {}s, expanding nodes:{}"
+              .format(end_time - start,
+                      end_time - initial_time,
+                      self.nodes))
 
     def watchmen_init(self, class_):
         n_class = len(set(class_))
@@ -232,6 +246,11 @@ class MWRP:
                                 self.edge_list[end] = [start]
                             else:
                                 self.edge_list[end].append(start)
+        # check legality
+        for i in range(self.n_agent):
+            x, y = self.start[i]
+            assert self.map[x, y] == 0, "出发点不符合条件"
+        # initialize
         self.params["LOS"] = self.LOS
         self.params["empty_cells"] = self.empty_cells
         self.params["APSP"] = self.APSP
@@ -274,9 +293,9 @@ class MWRP:
 
     def plot_lines(self, mat_w, mat_h):
         left_border = up_border = -0.5
-        right_border, down_border = mat_h-0.5, mat_w-0.5
-        plt.hlines([i-0.5 for i in range(mat_w)], left_border, right_border, color='black')
-        plt.vlines([i-0.5 for i in range(mat_h)], up_border, down_border, color='black')
+        right_border, down_border = mat_w-0.5, mat_h-0.5
+        plt.hlines([i-0.5 for i in range(mat_h)], left_border, right_border, color='black')
+        plt.vlines([i-0.5 for i in range(mat_w)], up_border, down_border, color='black')
 
     def visualize(self, paths, class_):
         """
@@ -298,7 +317,6 @@ class MWRP:
         for i, path in enumerate(paths):
             color = plt.cm.Set1(i)
             length = len(path)
-            print(f"length:{length}")
             start_x, start_y = self.decode(path[0])
             # print(f"start:{start_x},{start_y}")
             plt.text(start_y, start_x, s=f'S{i}', fontsize='x-large', ha='center', va='center',
@@ -336,10 +354,11 @@ def main():
     files = os.listdir(path)
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",
-              "DF_factor": 2, "IW": True, "WR": True,
-              "n_agent": 3, "heuristic": "MST"}    # TSP,MST,agg_h, None
+              "DF_factor": 2, "IW": True, "WR": False,
+              "n_agent": 3, "heuristic":  "MST"}    # TSP,MST,agg_h, None
     # start = None  # give the pos responding to n_agent
-    start = [(0, 0), (3, 0), (10,10)]
+    # start = [(0, 0), (3, 0), (10, 10)]
+    start = [(0, 0), (10, 0), (20, 18)]
     for file in files:
         print(file)
         map = read_map(file)

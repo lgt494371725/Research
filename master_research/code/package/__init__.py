@@ -10,8 +10,11 @@ from copy import deepcopy
 from collections import deque, defaultdict
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import minimum_spanning_tree
+from scipy.sparse.csgraph import floyd_warshall
 import matplotlib.pyplot as plt
 from python_tsp.heuristics import solve_tsp_local_search
 from sklearn.cluster import KMeans
+from collections import Counter
 from .PQ import PriorityQueue
-from joblib import Parallel, delayed
+from .balanced_clustering import get_even_clusters
+from .balanced_clustering import MyKmeans

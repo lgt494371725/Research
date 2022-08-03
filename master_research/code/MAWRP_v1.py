@@ -1,9 +1,9 @@
 """
-version 1.2
-指定start会被分配到最近的cluster
-实现A*探索中的low-level
-plot lines bug修复
-路径探索部分并发
+version 1.4
+路径探索部分并发-> 删除并发部分
+initialize函数实装弗洛伊德算法，初始化时间由8s->0.2s
+聚类时不再将障碍物视为cluster
+删除额外的距离出发点特征，将已有特征重复几列并没有意义
 """
 from package import *
 from WRP_solver import WatchmanRouteProblem
@@ -55,13 +55,6 @@ class MWRP:
         self.edge_list, self.nodes = {}, 0
         self.pq_l2 = PriorityQueue()
 
-    def WRP_solve(self, watchman):
-        temp_params = self.params
-        temp_params['empty_cells'] = watchman.empty_cells
-        temp_params['edge_list'] = watchman.edge_list
-        sol = WatchmanRouteProblem(self.map, watchman.start, **temp_params)
-        return sol.run()
-
     def run(self):
         start = time.perf_counter()
         self.initialize()
@@ -69,9 +62,8 @@ class MWRP:
         print("initialization complete! time:{} s,".format(initial_time))
         class_ = self.clustering()
         paths = []
+        self.visualize([], class_=class_)
         self.watchmen_init(class_)
-        # self.visualize([], class_=class_)
-        # paths = Parallel(n_jobs=self.n_agent)(delayed(self.WRP_solve)(w) for w in self.watchmen)
         for w in self.watchmen:
             temp_params = self.params
             temp_params['empty_cells'] = w.empty_cells
@@ -86,7 +78,7 @@ class MWRP:
         #     self.next_step(cur_state)
         #     cur_state = self.pq_l2.pop_()
         # self.visualize(cur_state.get_paths(), class_=class_)
-        # assert self.check_finish(cur_state.get_paths()), "路径有误！"
+        # assert self.check_finish(cur_state.get_paths()), "wrong answer！"
         end_time = time.perf_counter()
         print("total time:{}s,path finding time {}s, expanding nodes:{}"
               .format(end_time - start,
@@ -94,38 +86,42 @@ class MWRP:
                       self.nodes))
 
     def watchmen_init(self, class_):
-        n_class = len(set(class_))
-        cur_class = 0
+        """
+        class_: classification result for cells, class_[0] is not representing for No0.cell,
+        but the first non-obstacle cell.
+        """
+        n_class = self.n_agent
         selected = [0 for i in range(self.n_agent)]  # for designating start point
-        for i in range(n_class):
-            class_idx = np.where(class_ == i)[0]  # 外面包了一层元组类型,需要去掉
-            if not self.is_obstacle(class_idx[0]):
-                temp_watchman = self.watchmen[cur_class]
-                temp_empty_cells = set(class_idx)  # convert to set type
-                temp_watchman.empty_cells = temp_empty_cells
-                # edge_list
-                temp_edge_list = dict()
-                for key, value in self.edge_list.items():
-                    if key in temp_empty_cells:
-                        temp_edge_list[key] = self.edge_list[key]
-                        temp_edge_list[key] = list(set(temp_edge_list[key]) & temp_empty_cells)
-                temp_watchman.edge_list = temp_edge_list
-                # start point
-                samples = np.random.choice(list(temp_empty_cells), len(temp_empty_cells)//3)
-                min_idx = -1  # which start point is the closest to the cluster
-                avg_d = float('inf')  # calc average distance between start point and cluster
-                for n in range(self.n_agent):
-                    if selected[n] == 1:
-                        continue
-                    start_code = self.encode(self.start[n][0], self.start[n][1])
-                    distance_to_start = [self.get_APSP(start_code, c, distance=True) for c in samples]
-                    new_avg_d = np.average(distance_to_start)
-                    if new_avg_d < avg_d:
-                        avg_d = new_avg_d
-                        min_idx = n
-                temp_watchman.start = self.start[min_idx]
-                selected[min_idx] = 1
-                cur_class += 1
+        real_cell_idx = sorted(list(self.empty_cells))  # after removing obstacles, the idx have changed
+        for cur_class in range(n_class):
+            class_idx = np.where(class_ == cur_class)[0]  # 外面包了一层元组类型,需要去掉
+            # 待调整
+            temp_watchman = self.watchmen[cur_class]
+            temp_empty_cells = set(real_cell_idx[idx] for idx in class_idx)  # convert to set type
+            temp_watchman.empty_cells = temp_empty_cells
+            # edge_list
+            temp_edge_list = dict()
+            for key, value in self.edge_list.items():
+                if key in temp_empty_cells:
+                    temp_edge_list[key] = self.edge_list[key]
+                    # remove the cells not in this watchman
+                    temp_edge_list[key] = list(set(temp_edge_list[key]) & temp_empty_cells)
+            temp_watchman.edge_list = temp_edge_list
+            # start point
+            samples = np.random.choice(list(temp_empty_cells), len(temp_empty_cells)//3)
+            min_idx = -1  # which start point is the closest to the cluster
+            avg_d = float('inf')  # calc average distance between start point and cluster
+            for n in range(self.n_agent):
+                if selected[n] == 1:
+                    continue
+                start_code = self.encode(self.start[n][0], self.start[n][1])
+                distance_to_start = [self.get_APSP(start_code, c, distance=True) for c in samples]
+                new_avg_d = np.average(distance_to_start)
+                if new_avg_d < avg_d:
+                    avg_d = new_avg_d
+                    min_idx = n
+            temp_watchman.start = self.start[min_idx]
+            selected[min_idx] = 1
 
     # def synchro(self, watchmen):  # 不考虑每走一步都同步，2-layer search足够
     #     seen = set()
@@ -139,14 +135,74 @@ class MWRP:
         return self.map[x, y] == 1
 
     def clustering(self):
-        matrix = np.zeros((self.h*self.w, self.h*self.w))-1
-        length = len(matrix)
-        matrix[[i for i in range(length)], [i for i in range(length)]] = 0
+        matrix = np.zeros((self.h*self.w, self.h*self.w+2))
         for pos, d in self.APSP_d.items():
-            matrix[pos[0], pos[1]] = matrix[pos[1], pos[0]] = d
+            matrix[[pos[0], pos[1]], [pos[1], pos[0]]] = d  # np.log1p(d)
         # matrix[:, -1] = np.random.randint(0, self.h*self.w//2, size=self.h*self.w)  如果给需要给特征矩阵多加一个随机特征的话
-        result = KMeans(self.n_agent+1).fit_predict(matrix)  # +1 is for obstacle
+
+        non_zero_idx = np.where(matrix.sum(axis=1) != 0)[0]  # np.where return tuple type, need [0] to get result
+        # if non_zero_idx[0]=5, means the first non-obstacle cell is No.5 cell
+        matrix[:, -2:] = np.array([self.decode(i) for i in range(self.h*self.w)])
+        matrix = matrix[non_zero_idx, :]
+
+        # result = get_even_clusters(matrix, n_clusters=self.n_agent)  # bad performance
+        # result = KMeans(self.n_agent).fit_predict(matrix)
+        result = MyKmeans(self.n_agent, non_zero_idx, self.edge_list).fit_predict(matrix)
+        print("clustering result:", Counter(result))
+        result = self.balanced_connect_processing(result, non_zero_idx)
         return np.array(result)
+
+    def balanced_connect_processing(self, clustering, non_zero_idx):
+        """
+        如果2个点属于不同的类别，且有edge连着，判断是否进行move
+        balanced value of a move:
+        假设a属于Cr，b属于Cs依次判断以下条件
+        value=2：如果|Cr|>balance_size and |Cs|<balance_size
+        value=1: if |Cr| > |Cs|+1
+        value=0 if |Cr|=|Cs|+1
+        value=-1 if |Cr|<=|Cs|
+
+        WM(C)=||C|-balance_size|
+        weight value of move=WM|Cr|+WM|Cs|-WM|Cr-pi|-WM|Cs+pi|
+        ========
+        执行move的条件：balanced value>0 or (balanced value=0 and weight value of move > 0)
+        do move operation until no more remain
+        """
+        balanced_size = np.ceil(len(clustering) / self.n_agent)
+        tolerance_size = 3
+        self.counter = Counter(clustering)
+        mapping = {cell_num: idx for idx, cell_num in enumerate(non_zero_idx)}
+        # mapping[5]=2 means the No.5 cell is the 2nd non_zero cell
+        for key, value in self.edge_list.items():  # 如何循环的问题要再改善一下
+            idx1 = mapping[key]
+            cls_1 = clustering[idx1]
+            candidate = value
+            for nxt_cell in candidate:
+                idx2 = mapping[nxt_cell]
+                cls_2 = clustering[idx2]
+                if cls_1 == cls_2:
+                    continue
+                cls_1_size, cls_2_size = self.counter[cls_1], self.counter[cls_2]
+                if cls_1_size > balanced_size > cls_2_size:
+                    # 是否需要一个check函数，check连通性
+                    self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
+                elif cls_1_size - cls_2_size > tolerance_size:
+                    self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
+                elif 0 <= cls_1_size - cls_2_size <= tolerance_size:
+                    weight_value = abs(cls_1_size - balanced_size) + abs(cls_2_size - balanced_size) \
+                                   - abs(cls_1_size - 1 - balanced_size) - abs(cls_2_size + 1 - balanced_size)
+                    if weight_value > 0:
+                        self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
+                elif cls_1_size - cls_2_size < 0:
+                    continue
+        return clustering
+
+    def assign_to_cluster(self, clustering, idx, cls_1, cls_2):
+        clustering[idx] = cls_2
+        self.counter[cls_1] -= 1
+        self.counter[cls_2] += 1
+        print(f"assign {self.decode(idx)} from {cls_1} to {cls_2}")
+        self.visualize([], class_=clustering)
 
     def check_finish(self, paths):
         map_ = self.map.copy()
@@ -217,23 +273,24 @@ class MWRP:
         prepare two lookup tables for efficiency
         self.LOS, self.empty_cells, self.APSP, self.APSP_d, self.edge_list
         """
+        adjacent_matrix = np.zeros((self.h * self.w, self.h * self.w))
         for x in range(self.h):
             for y in range(self.w):
                 if self.map[x, y] == 0:
                     code = self.encode(x, y)
                     self.empty_cells.add(code)
                     self.LOS[code] = LOS4(self.map, code)
-                    for num in range(code + 1, self.h * self.w):  # 与其他所有点的最短距离
-                        cell_x, cell_y = self.decode(num)
-                        if self.map[cell_x, cell_y] == 1:
-                            continue
-                        path, d = self.minimum_d((x, y), (cell_x, cell_y))
-                        a, b = code, num
-                        # make sure a is smaller
-                        assert a < b
-                        self.APSP_d[(a, b)] = d
-                        self.APSP[(a, b)] = path
-                    # build edge list
+                    # for num in range(code + 1, self.h * self.w):  # 与其他所有点的最短距离
+                    #     cell_x, cell_y = self.decode(num)
+                    #     if self.map[cell_x, cell_y] == 1:
+                    #         continue
+                    #     path, d = self.minimum_d((x, y), (cell_x, cell_y))
+                    #     a, b = code, num
+                    #     # make sure a is smaller
+                    #     assert a < b
+                    #     self.APSP_d[(a, b)] = d
+                    #     self.APSP[(a, b)] = path
+                    # build edge list and adjacent matrix
                     for new_x, new_y in [(x + 1, y), (x, y + 1)]:  # 图会自动建立双向边,所以只需要向前考虑
                         if 0 <= new_x < self.h and 0 <= new_y < self.w and self.map[new_x][new_y] != 1:
                             start = self.encode(x, y)
@@ -246,6 +303,20 @@ class MWRP:
                                 self.edge_list[end] = [start]
                             else:
                                 self.edge_list[end].append(start)
+                            # build adjacent matrix
+                            adjacent_matrix[[start, end], [end, start]] = 1
+        # build APSP and APSP_d
+        graph = csr_matrix(adjacent_matrix)
+        dist_matrix, predecessors = floyd_warshall(csgraph=graph, directed=False, return_predecessors=True)
+        temp_list = list(self.empty_cells)
+        temp_list.sort()
+        for i in range(len(temp_list)):
+            a = temp_list[i]
+            for j in range(i+1, len(temp_list)):
+                b = temp_list[j]
+                self.APSP[(a, b)] = self.get_path_from_pred(predecessors, a, b)
+                self.APSP_d[(a, b)] = int(dist_matrix[a, b])
+        del temp_list, dist_matrix, predecessors
         # check legality
         for i in range(self.n_agent):
             x, y = self.start[i]
@@ -256,6 +327,15 @@ class MWRP:
         self.params["APSP"] = self.APSP
         self.params["APSP_d"] = self.APSP_d
         self.params["edge_list"] = self.edge_list
+
+    def get_path_from_pred(self, pred_m, start, end):
+        path = [end]
+        pred = pred_m[start, end]
+        while pred != start:
+            path.append(pred)
+            pred = pred_m[start, pred]
+        path.append(start)
+        return path[::-1]
 
     def minimum_d(self, start, end):
         """
@@ -275,7 +355,7 @@ class MWRP:
         while q:
             x, y, d = q.popleft()
             # print(f"{a},{b} distance", (x, y, d))
-            if (x, y) == (target_x, target_y):
+            if (x, y) == (target_x, target_y):  # find the target, record path
                 # print(f"{a},{b} distance", (x, y, d))
                 min_path = []
                 current = self.encode(target_x, target_y)
@@ -307,7 +387,7 @@ class MWRP:
 
         # plot cluster
         axis_x, axis_y = [], []
-        for i in range(len(class_)):
+        for i in sorted(list(self.empty_cells)):  # have deleted the obstacle cells
             x, y = self.decode(i)
             axis_x.append(x)
             axis_y.append(y)
@@ -357,8 +437,12 @@ def main():
               "DF_factor": 2, "IW": True, "WR": False,
               "n_agent": 3, "heuristic":  "MST"}    # TSP,MST,agg_h, None
     # start = None  # give the pos responding to n_agent
-    # start = [(0, 0), (3, 0), (10, 10)]
-    start = [(0, 0), (10, 0), (20, 18)]
+    start = [(0, 0), (20, 0), (20, 20)]
+    # map = np.array([[1, 0, 0, 0],
+    #                 [1, 0, 1, 1],
+    #                 [0, 0, 0, 0],
+    #                 [0, 1, 1, 0],
+    #                 [0, 0, 0, 0]])
     for file in files:
         print(file)
         map = read_map(file)

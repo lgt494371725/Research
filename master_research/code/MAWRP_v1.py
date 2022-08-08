@@ -1,9 +1,7 @@
 """
-version 1.4
-路径探索部分并发-> 删除并发部分
-initialize函数实装弗洛伊德算法，初始化时间由8s->0.2s
-聚类时不再将障碍物视为cluster
-删除额外的距离出发点特征，将已有特征重复几列并没有意义
+version 2.1
+初步完成平衡聚类算法
+第二阶段找临界点的方式可优化
 """
 from package import *
 from WRP_solver import WatchmanRouteProblem
@@ -147,62 +145,11 @@ class MWRP:
 
         # result = get_even_clusters(matrix, n_clusters=self.n_agent)  # bad performance
         # result = KMeans(self.n_agent).fit_predict(matrix)
-        result = MyKmeans(self.n_agent, non_zero_idx, self.edge_list).fit_predict(matrix)
+        result = MyKmeans(self.n_agent, non_zero_idx, self.APSP_d, self.edge_list).fit_predict(matrix)
         print("clustering result:", Counter(result))
-        result = self.balanced_connect_processing(result, non_zero_idx)
+        # result = self.balanced_connect_processing(result, non_zero_idx)
+        # result = self.MYKmeans(matrix, non_zero_idx)
         return np.array(result)
-
-    def balanced_connect_processing(self, clustering, non_zero_idx):
-        """
-        如果2个点属于不同的类别，且有edge连着，判断是否进行move
-        balanced value of a move:
-        假设a属于Cr，b属于Cs依次判断以下条件
-        value=2：如果|Cr|>balance_size and |Cs|<balance_size
-        value=1: if |Cr| > |Cs|+1
-        value=0 if |Cr|=|Cs|+1
-        value=-1 if |Cr|<=|Cs|
-
-        WM(C)=||C|-balance_size|
-        weight value of move=WM|Cr|+WM|Cs|-WM|Cr-pi|-WM|Cs+pi|
-        ========
-        执行move的条件：balanced value>0 or (balanced value=0 and weight value of move > 0)
-        do move operation until no more remain
-        """
-        balanced_size = np.ceil(len(clustering) / self.n_agent)
-        tolerance_size = 3
-        self.counter = Counter(clustering)
-        mapping = {cell_num: idx for idx, cell_num in enumerate(non_zero_idx)}
-        # mapping[5]=2 means the No.5 cell is the 2nd non_zero cell
-        for key, value in self.edge_list.items():  # 如何循环的问题要再改善一下
-            idx1 = mapping[key]
-            cls_1 = clustering[idx1]
-            candidate = value
-            for nxt_cell in candidate:
-                idx2 = mapping[nxt_cell]
-                cls_2 = clustering[idx2]
-                if cls_1 == cls_2:
-                    continue
-                cls_1_size, cls_2_size = self.counter[cls_1], self.counter[cls_2]
-                if cls_1_size > balanced_size > cls_2_size:
-                    # 是否需要一个check函数，check连通性
-                    self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
-                elif cls_1_size - cls_2_size > tolerance_size:
-                    self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
-                elif 0 <= cls_1_size - cls_2_size <= tolerance_size:
-                    weight_value = abs(cls_1_size - balanced_size) + abs(cls_2_size - balanced_size) \
-                                   - abs(cls_1_size - 1 - balanced_size) - abs(cls_2_size + 1 - balanced_size)
-                    if weight_value > 0:
-                        self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
-                elif cls_1_size - cls_2_size < 0:
-                    continue
-        return clustering
-
-    def assign_to_cluster(self, clustering, idx, cls_1, cls_2):
-        clustering[idx] = cls_2
-        self.counter[cls_1] -= 1
-        self.counter[cls_2] += 1
-        print(f"assign {self.decode(idx)} from {cls_1} to {cls_2}")
-        self.visualize([], class_=clustering)
 
     def check_finish(self, paths):
         map_ = self.map.copy()

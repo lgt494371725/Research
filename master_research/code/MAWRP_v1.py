@@ -1,7 +1,8 @@
 """
-version 2.1
+version 2.2
 初步完成平衡聚类算法
 第二阶段找临界点的方式可优化
+解决起点指定问题，不再需要根据聚类结果来指定起点，会根据起点未知进行智能聚类，但注意分配时不能产生死路
 """
 from package import *
 from WRP_solver import WatchmanRouteProblem
@@ -121,13 +122,6 @@ class MWRP:
             temp_watchman.start = self.start[min_idx]
             selected[min_idx] = 1
 
-    # def synchro(self, watchmen):  # 不考虑每走一步都同步，2-layer search足够
-    #     seen = set()
-    #     for w in watchmen:
-    #         seen = seen | w.seen
-    #     for w in watchmen:
-    #         w.add_seen(seen)
-
     def is_obstacle(self, code):
         x, y = self.decode(code)
         return self.map[x, y] == 1
@@ -142,13 +136,10 @@ class MWRP:
         # if non_zero_idx[0]=5, means the first non-obstacle cell is No.5 cell
         matrix[:, -2:] = np.array([self.decode(i) for i in range(self.h*self.w)])
         matrix = matrix[non_zero_idx, :]
-
-        # result = get_even_clusters(matrix, n_clusters=self.n_agent)  # bad performance
         # result = KMeans(self.n_agent).fit_predict(matrix)
-        result = MyKmeans(self.n_agent, non_zero_idx, self.APSP_d, self.edge_list).fit_predict(matrix)
+        n_start_pos = [self.encode(pos[0], pos[1]) for pos in self.start]
+        result = MyKmeans(self.n_agent, non_zero_idx, self.APSP_d, self.edge_list, n_start_pos).fit_predict(matrix)
         print("clustering result:", Counter(result))
-        # result = self.balanced_connect_processing(result, non_zero_idx)
-        # result = self.MYKmeans(matrix, non_zero_idx)
         return np.array(result)
 
     def check_finish(self, paths):
@@ -185,14 +176,16 @@ class MWRP:
             cur_seen = temp_state.seen
             for cell in path:
                 cur_seen = cur_seen | self.LOS[cell]
-            h_value = self.calc_MST_h(cur_seen, cur_path)
-            # h_value = self.calc_TSP_h(cur_seen, cur_path)
+            h_value = self.calc_h(
+                cur_path)
             # h_value = 0
-            # h_value = self.calc_agg_h(cur_seen, cur_path)
             # print("h_value:", h_value)
             A_star_v = self.calc_A_stat_v(len(cur_path), h_value, w=self.f_weight, option=self.f_option)
             self.pq.push_(State(cur_path, cur_seen, A_star_v))
             self.nodes += 1
+
+    def calc_h(self, paths) -> int:
+        return 0
 
     def calc_A_stat_v(self, g, h, w=1, option="WA"):
         if option == "WA":
@@ -227,16 +220,6 @@ class MWRP:
                     code = self.encode(x, y)
                     self.empty_cells.add(code)
                     self.LOS[code] = LOS4(self.map, code)
-                    # for num in range(code + 1, self.h * self.w):  # 与其他所有点的最短距离
-                    #     cell_x, cell_y = self.decode(num)
-                    #     if self.map[cell_x, cell_y] == 1:
-                    #         continue
-                    #     path, d = self.minimum_d((x, y), (cell_x, cell_y))
-                    #     a, b = code, num
-                    #     # make sure a is smaller
-                    #     assert a < b
-                    #     self.APSP_d[(a, b)] = d
-                    #     self.APSP[(a, b)] = path
                     # build edge list and adjacent matrix
                     for new_x, new_y in [(x + 1, y), (x, y + 1)]:  # 图会自动建立双向边,所以只需要向前考虑
                         if 0 <= new_x < self.h and 0 <= new_y < self.w and self.map[new_x][new_y] != 1:
@@ -384,7 +367,7 @@ def main():
               "DF_factor": 2, "IW": True, "WR": False,
               "n_agent": 3, "heuristic":  "MST"}    # TSP,MST,agg_h, None
     # start = None  # give the pos responding to n_agent
-    start = [(0, 0), (20, 0), (20, 20)]
+    start = [(8, 8), (8, 9), (20, 0)]
     # map = np.array([[1, 0, 0, 0],
     #                 [1, 0, 1, 1],
     #                 [0, 0, 0, 0],

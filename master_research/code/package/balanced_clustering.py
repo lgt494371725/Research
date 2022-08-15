@@ -9,53 +9,9 @@ from copy import deepcopy
 # https://www.scipopt.org/
 
 
-def get_even_clusters(X, n_clusters):
-    """
-    result seems bad
-    会出现不联通问题,还有,单纯选择距离最远的cell进行再分配不行,应该要再考虑到这些cell离新簇的距离要尽可能接近
-    """
-    cluster_size = int(np.ceil(len(X) / n_clusters))
-    kmeans = KMeans(n_clusters)
-    clusters = kmeans.fit_predict(X)
-    # centers = kmeans.cluster_centers_
-    # centers = centers.reshape(-1, 1, X.shape[-1]).repeat(cluster_size, 1).reshape(-1, X.shape[-1])
-    # distance_matrix = cdist(X, centers)
-    # clusters = linear_sum_assignment(distance_matrix)[1]//cluster_size
-
-    # 根据每个簇的size进行排序，从大的先开始重新分配
-    # 计算簇内的cell与簇中心的距离，从小到大排序，超过指定cluster_size的cell则分配给其他cluster
-    # 分配给除自身外的最近cluster，size最小的cluster不执行分配操作
-    centers = kmeans.cluster_centers_
-    clusters_size = []
-    clusters_idx = []
-    for num in range(n_clusters):
-        cur_cluster_idx = np.where(clusters == num)[0]
-        clusters_size.append(len(cur_cluster_idx))
-        clusters_idx.append(cur_cluster_idx)
-    size_rank = np.argsort(clusters_size)[::-1]
-    for r in size_rank[:-1]:  # skip smallest cluster
-        if clusters_size[r] < cluster_size:
-            continue
-        temp_center = centers[[r]]
-        temp_cluster_idx = clusters_idx[r]
-        temp_cells = X[temp_cluster_idx, :]
-        # if r==1 and n_cluster=4,then other clusters are 0,2,3
-        # other_center[0] means 0-th cluster, [1] means 2 and [2] means 3
-        cluster_mapping = [i for i in range(n_clusters) if i != r]
-        other_centers = centers[cluster_mapping]
-        distances = cdist(temp_cells, temp_center).squeeze()  # cdist return 2-d array
-        low_rank_cell_idx = np.argsort(distances)[cluster_size:]
-        reassign_cell_idx = np.array([temp_cluster_idx[c] for c in low_rank_cell_idx])
-        distances_to_new_c = cdist(temp_cells[low_rank_cell_idx, :], other_centers)
-        new_cluster = np.argsort(distances_to_new_c)[:, 0]
-        new_cluster = np.array([cluster_mapping[c] for c in new_cluster])
-        assert len(new_cluster) == len(reassign_cell_idx)
-        clusters[reassign_cell_idx] = new_cluster  # 待定
-    return clusters
-
-
 class Cluster:
-    def __init__(self, central_idx):
+    def __init__(self, central_idx, is_start=False):
+        self.is_start = is_start  # agent的起点是否在聚类中心里
         self.central_idx = central_idx
         self.reachable = set()
         self.members = [central_idx]
@@ -96,7 +52,7 @@ class MyKmeans:
     可以基于这个去做一些调整
     """
 
-    def __init__(self, k, non_zero_idx, APSP_d, edge_list, max_iter=300):
+    def __init__(self, k, non_zero_idx, APSP_d, edge_list, n_start_pos, max_iter=300):
         """
         :param k:
         :param non_zero_idx: get the correct cell number after removing obstacles
@@ -105,6 +61,7 @@ class MyKmeans:
         :param max_iter:
         """
         self.k = k
+        self.n_start_pos = n_start_pos
         self.max_iter = max_iter
         self.features_count = -1
         self.clusters = []
@@ -119,8 +76,8 @@ class MyKmeans:
         """
         :param data: numpy数组，约定shape为：(数据数量，数据维度), 已排除空cell
         :type data: np.ndarray
-        对于每个簇，都需要有一个生成树，每个节点都有自己的前驱节点
-        distances: 表示distances[p]表示p点与所属根节点r之间的总路径长度，当不属于任何簇时，为-1
+        every cluster will have a responding spanning tree and every node in C will have a predecessor
+        distances: distances[p]表示p点与所属根节点r之间的总路径长度，当不属于任何簇时，为-1
         """
         self.n_sample = data.shape[0]
         self.features_count = data.shape[1]
@@ -129,18 +86,22 @@ class MyKmeans:
         mapping = {cell_num: idx for idx, cell_num in enumerate(self.non_zero_idx)}
         # mapping[5]=2 means the No.5 cell is the 2nd non_zero cell
 
-        # 等距离选择聚类中心
+        # 初始化聚类中心
         for i in range(self.k):
-            idx = self.non_zero_idx[self.n_sample//self.k*i]
-            self.clusters.append(Cluster(idx))
+            # idx = self.non_zero_idx[self.n_sample//self.k*i]  # 等距离选择聚类中心
+            idx = self.n_start_pos[i]  # 选择agent的出发点作为各个聚类的中心
+            self.clusters.append(Cluster(idx, is_start=True))
             distances[idx] = 0
             self.clusters[i].add_reachable(idx, self.edge_list[idx])
+
         for i in range(self.max_iter):
             # 清空聚类
             while -1 in distances.values():
                 for cluster in self.clusters:
                     to_remove = []  # 有些cell候补已经被别的簇拿走了，所以需要去掉
                     candidates = cluster.reachable  # reachable
+                    if cluster.is_start:  # True: 该簇已经有一个起点了，不允许有第二个
+                        candidates -= set(self.n_start_pos)  # 取出起点作为候补
                     min_d = float('inf')
                     min_idx = -1
                     for c in candidates:
@@ -148,7 +109,7 @@ class MyKmeans:
                             to_remove.append(c)
                             continue
                         pred = cluster.get_predecessor(c)
-                        temp_d = distances[pred]+1
+                        temp_d = distances[pred] + 1
                         if temp_d < min_d:
                             min_d = temp_d
                             min_idx = c
@@ -157,6 +118,9 @@ class MyKmeans:
                     cluster.remove_reachable(to_remove)
                     cluster.add_member(min_idx, self.edge_list[min_idx])
                     distances[min_idx] = distances[cluster.get_predecessor(min_idx)] + 1
+                    if min_idx in self.n_start_pos:
+                        assert cluster.is_start is False
+                        cluster.is_start = True
 
             # 记录前一次聚类完成后的中心
             prev_centroids = [cluster.central_idx for cluster in self.clusters]
@@ -164,17 +128,20 @@ class MyKmeans:
             new_clusters = []
             new_distances = {idx: -1 for idx in self.non_zero_idx}
             for num, cluster in enumerate(self.clusters):
+                is_start = False
                 member_idx = [mapping[c] for c in cluster.members]
                 cluster_data = data[member_idx]
                 centroid = np.average(cluster_data, axis=0)
                 new_cen_idx = self.non_zero_idx[np.linalg.norm(data - centroid, axis=1).argmin()]
-                new_clusters.append(Cluster(new_cen_idx))
+                if new_cen_idx in self.n_start_pos:
+                    is_start = True
+                new_clusters.append(Cluster(new_cen_idx, is_start=is_start))
                 new_distances[new_cen_idx] = 0
                 new_clusters[num].add_reachable(new_cen_idx, self.edge_list[new_cen_idx])
             # 检测两次聚类中心的变化
             cur_centroids = [cluster.central_idx for cluster in new_clusters]
             if prev_centroids == cur_centroids:
-                result = [-1]*self.n_sample
+                result = [-1] * self.n_sample
                 print(f"after {i} iterations, centroids no longer change")
                 for cluster_code, cluster in enumerate(self.clusters):
                     idxes = [mapping[c] for c in cluster.members]
@@ -217,7 +184,7 @@ class MyKmeans:
                 for nxt_cell in candidate:
                     idx2 = mapping[nxt_cell]
                     cls_2 = clustering[idx2]
-                    if cls_1 == cls_2:
+                    if cls_1 == cls_2 or key in self.n_start_pos:
                         continue
                     # 说明来自不同的cluster，是否分配需要进行连续性判断
                     cls_1_size, cls_2_size = self.counter[cls_1], self.counter[cls_2]
@@ -229,7 +196,8 @@ class MyKmeans:
                             self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
                     elif 0 <= cls_1_size - cls_2_size <= tolerance_size:
                         weight_value = abs(cls_1_size - self.balanced_size) + abs(cls_2_size - self.balanced_size) \
-                                       - abs(cls_1_size - 1 - self.balanced_size) - abs(cls_2_size + 1 - self.balanced_size)
+                                       - abs(cls_1_size - 1 - self.balanced_size) - abs(
+                            cls_2_size + 1 - self.balanced_size)
                         if weight_value > 0 and self.feasibility_checking(key, cls_1):
                             self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
                     elif cls_1_size - cls_2_size < 0:
@@ -237,7 +205,7 @@ class MyKmeans:
         return clustering
 
     def feasibility_checking(self, idx, cls_1):
-        print(f"checking {idx}")
+        # print(f"checking {idx}")
         cur_cluster = deepcopy(self.clusters[cls_1])
         successors = [success for success, pred in cur_cluster.predecessor.items() if pred == idx]
         if successors:  # 有后继者，要保证其他后继者都能找到可连接的前驱节点
@@ -255,7 +223,7 @@ class MyKmeans:
                         cur_cluster.predecessor[suc] = new_pred
                         break
                 else:
-                    print(f"succ {suc} can't find new predecessor")
+                    # print(f"succ {suc} can't find new predecessor")
                     return False
         cur_cluster.members.remove(idx)
         cur_cluster.predecessor.pop(idx)
@@ -269,11 +237,9 @@ class MyKmeans:
         clustering[idx] = cls_2
         cur_members = self.clusters[cls_2].members
         real_cell_code = self.non_zero_idx[idx]
-        pred_idx = np.abs(np.array(cur_members)-real_cell_code).argmin()
+        pred_idx = np.abs(np.array(cur_members) - real_cell_code).argmin()
         self.clusters[cls_2].predecessor[real_cell_code] = cur_members[pred_idx]
         self.clusters[cls_2].members.append(real_cell_code)
         self.counter[cls_1] -= 1
         self.counter[cls_2] += 1
-        print(f"assign {(real_cell_code//21,real_cell_code%21)} from {cls_1} to {cls_2}")
-
-
+        print(f"assign {(real_cell_code // 21, real_cell_code % 21)} from {cls_1} to {cls_2}")

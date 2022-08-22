@@ -1,7 +1,6 @@
 """
 version 2.2
-初步完成平衡聚类算法
-第二阶段找临界点的方式可优化
+初步完成平衡聚类算法，第二阶段找临界点的方式可优化
 解决起点指定问题，不再需要根据聚类结果来指定起点，会根据起点未知进行智能聚类，但注意分配时不能产生死路
 """
 from package import *
@@ -54,35 +53,61 @@ class MWRP:
         self.edge_list, self.nodes = {}, 0
         self.pq_l2 = PriorityQueue()
 
-    def run(self):
+    def restart(self):
+        self.start = None
+        self.empty_cells = set()
+        self.watchmen = [Watchman() for i in range(self.n_agent)]
+        self.LOS, self.APSP, self.APSP_d = {}, {}, {}
+        self.edge_list, self.nodes = {}, 0
+        self.pq_l2 = PriorityQueue()
+
+    def run(self, test_times):
         start = time.perf_counter()
-        self.initialize()
-        initial_time = time.perf_counter() - start
-        print("initialization complete! time:{} s,".format(initial_time))
-        class_ = self.clustering()
-        paths = []
-        self.visualize([], class_=class_)
-        self.watchmen_init(class_)
-        for w in self.watchmen:
-            temp_params = self.params
-            temp_params['empty_cells'] = w.empty_cells
-            temp_params['edge_list'] = w.edge_list
-            sol = WatchmanRouteProblem(self.map, w.start, **temp_params)
-            result = sol.run()
-            paths.append(result)
-        self.visualize(paths, class_=class_)
-        # cur_state = State(self.watchmen)
-        # while not cur_state.is_all_finish():  # 中止条件不对,改为一定时间内如果2-layer A* 没有提升就停止
-        #     # self.visualize(cur_state.path)
-        #     self.next_step(cur_state)
-        #     cur_state = self.pq_l2.pop_()
-        # self.visualize(cur_state.get_paths(), class_=class_)
-        # assert self.check_finish(cur_state.get_paths()), "wrong answer！"
+        f = open(f"../results/{self.n_agent}_agent_test_results.txt", "w+")
+        max_paths_len = []
+        for i in range(test_times):
+            try:
+                self.initialize()
+                # initial_time = time.perf_counter() - start
+                # print("initialization complete! time:{} s,".format(initial_time))
+                class_ = self.clustering()
+                paths = []
+                # self.visualize([], class_=class_)
+                self.watchmen_init(class_)
+                for w in self.watchmen:
+                    temp_params = self.params
+                    temp_params['empty_cells'] = w.empty_cells
+                    temp_params['edge_list'] = w.edge_list
+                    sol = WatchmanRouteProblem(self.map, w.start, **temp_params)
+                    result = sol.run()
+                    paths.append(result)
+                # self.visualize(paths, class_=class_)
+                paths_length = [*map(len, paths)]
+                max_paths_len.append(max(paths_length))
+                f.write(f"round{i}:start_pos:{self.start}, paths length:{paths_length}, min_sum:{sum(paths_length)}"
+                             f", min_max:{max(paths_length)}\n")
+                # cur_state = State(self.watchmen)
+                # while not cur_state.is_all_finish():  # 中止条件不对,改为一定时间内如果2-layer A* 没有提升就停止
+                #     # self.visualize(cur_state.path)
+                #     self.next_step(cur_state)
+                #     cur_state = self.pq_l2.pop_()
+                # self.visualize(cur_state.get_paths(), class_=class_)
+                # assert self.check_finish(cur_state.get_paths()), "wrong answer！"
+            except Exception as error_msg:
+                print(error_msg)
+            finally:
+                self.restart()
         end_time = time.perf_counter()
-        print("total time:{}s,path finding time {}s, expanding nodes:{}"
+        print("total time:{}s, expanding nodes:{}"
               .format(end_time - start,
-                      end_time - initial_time,
                       self.nodes))
+        f.write("total time:{}s, expanding nodes:{}, successful time:{}, avg_max_paths_len:{}, per_exe_time:{}\n"
+                     .format(end_time - start,
+                             self.nodes,
+                             len(max_paths_len),
+                             np.mean(max_paths_len),
+                             (end_time - start)/len(max_paths_len)))
+        f.close()
 
     def watchmen_init(self, class_):
         """
@@ -107,7 +132,7 @@ class MWRP:
                     temp_edge_list[key] = list(set(temp_edge_list[key]) & temp_empty_cells)
             temp_watchman.edge_list = temp_edge_list
             # start point
-            samples = np.random.choice(list(temp_empty_cells), len(temp_empty_cells)//3)
+            samples = np.random.choice(list(temp_empty_cells), len(temp_empty_cells) // 3)
             min_idx = -1  # which start point is the closest to the cluster
             avg_d = float('inf')  # calc average distance between start point and cluster
             for n in range(self.n_agent):
@@ -127,14 +152,14 @@ class MWRP:
         return self.map[x, y] == 1
 
     def clustering(self):
-        matrix = np.zeros((self.h*self.w, self.h*self.w+2))
+        matrix = np.zeros((self.h * self.w, self.h * self.w + 2))
         for pos, d in self.APSP_d.items():
             matrix[[pos[0], pos[1]], [pos[1], pos[0]]] = d  # np.log1p(d)
         # matrix[:, -1] = np.random.randint(0, self.h*self.w//2, size=self.h*self.w)  如果给需要给特征矩阵多加一个随机特征的话
 
         non_zero_idx = np.where(matrix.sum(axis=1) != 0)[0]  # np.where return tuple type, need [0] to get result
         # if non_zero_idx[0]=5, means the first non-obstacle cell is No.5 cell
-        matrix[:, -2:] = np.array([self.decode(i) for i in range(self.h*self.w)])
+        matrix[:, -2:] = np.array([self.decode(i) for i in range(self.h * self.w)])
         matrix = matrix[non_zero_idx, :]
         # result = KMeans(self.n_agent).fit_predict(matrix)
         n_start_pos = [self.encode(pos[0], pos[1]) for pos in self.start]
@@ -154,7 +179,7 @@ class MWRP:
                     axis_x.append(x)
                     axis_y.append(y)
             map_[axis_x, axis_y] = 1
-        return map_.sum() == self.w*self.h
+        return map_.sum() == self.w * self.h
 
     def next_step(self, cur_state):
         """
@@ -189,11 +214,11 @@ class MWRP:
 
     def calc_A_stat_v(self, g, h, w=1, option="WA"):
         if option == "WA":
-            return g+w*h
+            return g + w * h
         elif option == "XDP":
-            return 1/(2*w)*(g+(2*w-1)*h+math.sqrt((g-h)**2+4*w*g*h))
+            return 1 / (2 * w) * (g + (2 * w - 1) * h + math.sqrt((g - h) ** 2 + 4 * w * g * h))
         elif option == "XUP":
-            return 1/(2*w)*(g+h+math.sqrt((g+h)**2+4*w*(w-1)*h*h))
+            return 1 / (2 * w) * (g + h + math.sqrt((g + h) ** 2 + 4 * w * (w - 1) * h * h))
 
     def encode(self, x, y):
         return x * self.w + y
@@ -212,6 +237,7 @@ class MWRP:
         """
         prepare two lookup tables for efficiency
         self.LOS, self.empty_cells, self.APSP, self.APSP_d, self.edge_list
+        if start_pos not specified, random generation will be applicated
         """
         adjacent_matrix = np.zeros((self.h * self.w, self.h * self.w))
         for x in range(self.h):
@@ -242,11 +268,16 @@ class MWRP:
         temp_list.sort()
         for i in range(len(temp_list)):
             a = temp_list[i]
-            for j in range(i+1, len(temp_list)):
+            for j in range(i + 1, len(temp_list)):
                 b = temp_list[j]
                 self.APSP[(a, b)] = self.get_path_from_pred(predecessors, a, b)
                 self.APSP_d[(a, b)] = int(dist_matrix[a, b])
         del temp_list, dist_matrix, predecessors
+        # generate start_pos
+        if not self.start:
+            cand_start = np.random.choice(list(self.empty_cells), self.n_agent, replace=False)
+            self.start = [*map(lambda x: self.decode(x), cand_start)]
+            # print(f"The start point is randomly generated, {self.start}")
         # check legality
         for i in range(self.n_agent):
             x, y = self.start[i]
@@ -303,9 +334,9 @@ class MWRP:
 
     def plot_lines(self, mat_w, mat_h):
         left_border = up_border = -0.5
-        right_border, down_border = mat_w-0.5, mat_h-0.5
-        plt.hlines([i-0.5 for i in range(mat_h)], left_border, right_border, color='black')
-        plt.vlines([i-0.5 for i in range(mat_w)], up_border, down_border, color='black')
+        right_border, down_border = mat_w - 0.5, mat_h - 0.5
+        plt.hlines([i - 0.5 for i in range(mat_h)], left_border, right_border, color='black')
+        plt.vlines([i - 0.5 for i in range(mat_w)], up_border, down_border, color='black')
 
     def visualize(self, paths, class_):
         """
@@ -334,7 +365,7 @@ class MWRP:
 
             for j in range(length - 1):
                 x_1, y_1 = self.decode(path[j])
-                x_2, y_2 = self.decode(path[j+1])
+                x_2, y_2 = self.decode(path[j + 1])
                 dx_ = x_2 - x_1
                 dy_ = y_2 - y_1
                 plt.arrow(y_1, x_1, dx=dy_, dy=dx_, width=0.01, ec=color, alpha=1,
@@ -365,9 +396,10 @@ def main():
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WR": False,
-              "n_agent": 3, "heuristic":  "MST"}    # TSP,MST,agg_h, None
+              "n_agent": 2, "heuristic": "MST"}  # TSP,MST,agg_h, None
     # start = None  # give the pos responding to n_agent
-    start = [(8, 8), (8, 9), (20, 0)]
+    start = [(9, 5), (5, 7)]
+    test_times = 1
     # map = np.array([[1, 0, 0, 0],
     #                 [1, 0, 1, 1],
     #                 [0, 0, 0, 0],
@@ -377,7 +409,7 @@ def main():
         print(file)
         map = read_map(file)
         sol = MWRP(map, start, **params)
-        sol.run()
+        sol.run(test_times)
         break
 
 

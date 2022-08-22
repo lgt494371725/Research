@@ -72,6 +72,19 @@ class MyKmeans:
         self.APSP_d = APSP_d
         self.counter = None
 
+    def initialize_centroids(self, distances) -> None:
+        """
+        :param distances: the internal modification will be synchronized to the external, no need to return
+        :type distances: dict
+        """
+        # 初始化聚类中心
+        for i in range(self.k):
+            # idx = self.non_zero_idx[self.n_sample//self.k*i]  # 等距离选择聚类中心
+            idx = self.n_start_pos[i]  # 选择agent的出发点作为各个聚类的中心
+            self.clusters.append(Cluster(idx, is_start=True))
+            distances[idx] = 0
+            self.clusters[i].add_reachable(idx, self.edge_list[idx])
+
     def fit_predict(self, data):
         """
         :param data: numpy数组，约定shape为：(数据数量，数据维度), 已排除空cell
@@ -85,23 +98,21 @@ class MyKmeans:
         distances = {idx: -1 for idx in self.non_zero_idx}
         mapping = {cell_num: idx for idx, cell_num in enumerate(self.non_zero_idx)}
         # mapping[5]=2 means the No.5 cell is the 2nd non_zero cell
-
-        # 初始化聚类中心
-        for i in range(self.k):
-            # idx = self.non_zero_idx[self.n_sample//self.k*i]  # 等距离选择聚类中心
-            idx = self.n_start_pos[i]  # 选择agent的出发点作为各个聚类的中心
-            self.clusters.append(Cluster(idx, is_start=True))
-            distances[idx] = 0
-            self.clusters[i].add_reachable(idx, self.edge_list[idx])
+        self.initialize_centroids(distances)
 
         for i in range(self.max_iter):
             # 清空聚类
+            is_change = True
             while -1 in distances.values():
+                assert is_change is True, "failed by clustering algorithm"
+                # if not is_change:
+                #     print("clustering failed, restart")
+                is_change = False
                 for cluster in self.clusters:
                     to_remove = []  # 有些cell候补已经被别的簇拿走了，所以需要去掉
                     candidates = cluster.reachable  # reachable
                     if cluster.is_start:  # True: 该簇已经有一个起点了，不允许有第二个
-                        candidates -= set(self.n_start_pos)  # 取出起点作为候补
+                        candidates -= set(self.n_start_pos)
                     min_d = float('inf')
                     min_idx = -1
                     for c in candidates:
@@ -117,6 +128,7 @@ class MyKmeans:
                         continue
                     cluster.remove_reachable(to_remove)
                     cluster.add_member(min_idx, self.edge_list[min_idx])
+                    is_change = True
                     distances[min_idx] = distances[cluster.get_predecessor(min_idx)] + 1
                     if min_idx in self.n_start_pos:
                         assert cluster.is_start is False

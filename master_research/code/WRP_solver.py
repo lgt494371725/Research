@@ -48,11 +48,11 @@ class WatchmanRouteProblem:
         while not self.is_finish(cur_state):
             self.next_step(cur_state)
             cur_state = self.pq.pop_()
-        print(
-            "running time:{} s, expanding nodes:{}, start point:{}, path length: {}".format(time.perf_counter() - start,
-                                                                                            self.nodes,
-                                                                                            self.decode(self.start),
-                                                                                            len(cur_state.path)))
+        # print(
+        #     "running time:{} s, expanding nodes:{}, start point:{}, path length: {}".format(time.perf_counter() - start,
+        #                                                                                     self.nodes,
+        #                                                                                     self.decode(self.start),
+        #                                                                                     len(cur_state.path)))
         return cur_state.path
 
     def next_step(self, cur_state):

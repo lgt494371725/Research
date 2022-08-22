@@ -1,7 +1,8 @@
 """
-version 2.2
-初步完成平衡聚类算法，第二阶段找临界点的方式可优化
-解决起点指定问题，不再需要根据聚类结果来指定起点，会根据起点未知进行智能聚类，但注意分配时不能产生死路
+version 2.4
+删除平衡聚类时对于起点的指定规则
+允许路线重叠
+优化视觉效果
 """
 from package import *
 from WRP_solver import WatchmanRouteProblem
@@ -72,7 +73,7 @@ class MWRP:
                 # print("initialization complete! time:{} s,".format(initial_time))
                 class_ = self.clustering()
                 paths = []
-                # self.visualize([], class_=class_)
+                self.visualize([], class_=class_)
                 self.watchmen_init(class_)
                 for w in self.watchmen:
                     temp_params = self.params
@@ -81,7 +82,7 @@ class MWRP:
                     sol = WatchmanRouteProblem(self.map, w.start, **temp_params)
                     result = sol.run()
                     paths.append(result)
-                # self.visualize(paths, class_=class_)
+                self.visualize(paths, class_=class_)
                 paths_length = [*map(len, paths)]
                 max_paths_len.append(max(paths_length))
                 f.write(f"round{i}:start_pos:{self.start}, paths length:{paths_length}, min_sum:{sum(paths_length)}"
@@ -94,19 +95,21 @@ class MWRP:
                 # self.visualize(cur_state.get_paths(), class_=class_)
                 # assert self.check_finish(cur_state.get_paths()), "wrong answer！"
             except Exception as error_msg:
-                print(error_msg)
+                print("="*50)
+                print("error:", error_msg)
+                print("=" * 50)
             finally:
                 self.restart()
         end_time = time.perf_counter()
         print("total time:{}s, expanding nodes:{}"
               .format(end_time - start,
                       self.nodes))
-        f.write("total time:{}s, expanding nodes:{}, successful time:{}, avg_max_paths_len:{}, per_exe_time:{}\n"
-                     .format(end_time - start,
-                             self.nodes,
-                             len(max_paths_len),
-                             np.mean(max_paths_len),
-                             (end_time - start)/len(max_paths_len)))
+        # f.write("total time:{}s, expanding nodes:{}, successful time:{}, avg_max_paths_len:{}, per_exe_time:{}\n"
+        #              .format(end_time - start,
+        #                      self.nodes,
+        #                      len(max_paths_len),
+        #                      np.mean(max_paths_len),
+        #                      (end_time - start)/len(max_paths_len)))
         f.close()
 
     def watchmen_init(self, class_):
@@ -119,10 +122,39 @@ class MWRP:
         real_cell_idx = sorted(list(self.empty_cells))  # after removing obstacles, the idx have changed
         for cur_class in range(n_class):
             class_idx = np.where(class_ == cur_class)[0]  # 外面包了一层元组类型,需要去掉
-            # 待调整
             temp_watchman = self.watchmen[cur_class]
-            temp_empty_cells = set(real_cell_idx[idx] for idx in class_idx)  # convert to set type
-            temp_watchman.empty_cells = temp_empty_cells
+            temp_empty_cells = [real_cell_idx[idx] for idx in class_idx]  # need convert to set type later
+            # start point
+            min_idx = -1  # which start point is the closest to the cluster
+            avg_d = float('inf')  # calc average distance between start point and cluster
+            closest_cell = -1
+            for n in range(self.n_agent):
+                if selected[n] == 1:
+                    continue
+                start_code = self.encode(self.start[n][0], self.start[n][1])
+                distance_to_start = [self.get_APSP(start_code, c, distance=True) for c in temp_empty_cells]
+                new_closest_cell = temp_empty_cells[np.argmin(distance_to_start)]  # used later
+                new_avg_d = np.average(distance_to_start)
+                if new_avg_d < avg_d:
+                    avg_d = new_avg_d
+                    min_idx = n
+                    closest_cell = new_closest_cell
+            cur_start_pos = self.start[min_idx]
+            temp_watchman.start = cur_start_pos
+            selected[min_idx] = 1
+            """
+            there is a possibility that start_pos doesn't in the internal of cluster
+            so need to find the cell A closest to the start_pos B in the cluster 
+            and incorporate all cells on the path between A and B
+            """
+            temp_empty_cells = set(temp_empty_cells)
+            cur_start_pos_code = self.encode(cur_start_pos[0], cur_start_pos[1])
+            if cur_start_pos_code in temp_empty_cells:
+                temp_watchman.empty_cells = temp_empty_cells
+            else:
+                path_cells = self.get_APSP(cur_start_pos_code, closest_cell, distance=False)
+                temp_empty_cells = temp_empty_cells | set(path_cells)
+                temp_watchman.empty_cells = temp_empty_cells
             # edge_list
             temp_edge_list = dict()
             for key, value in self.edge_list.items():
@@ -131,21 +163,6 @@ class MWRP:
                     # remove the cells not in this watchman
                     temp_edge_list[key] = list(set(temp_edge_list[key]) & temp_empty_cells)
             temp_watchman.edge_list = temp_edge_list
-            # start point
-            samples = np.random.choice(list(temp_empty_cells), len(temp_empty_cells) // 3)
-            min_idx = -1  # which start point is the closest to the cluster
-            avg_d = float('inf')  # calc average distance between start point and cluster
-            for n in range(self.n_agent):
-                if selected[n] == 1:
-                    continue
-                start_code = self.encode(self.start[n][0], self.start[n][1])
-                distance_to_start = [self.get_APSP(start_code, c, distance=True) for c in samples]
-                new_avg_d = np.average(distance_to_start)
-                if new_avg_d < avg_d:
-                    avg_d = new_avg_d
-                    min_idx = n
-            temp_watchman.start = self.start[min_idx]
-            selected[min_idx] = 1
 
     def is_obstacle(self, code):
         x, y = self.decode(code)
@@ -352,7 +369,8 @@ class MWRP:
             x, y = self.decode(i)
             axis_x.append(x)
             axis_y.append(y)
-        plt.scatter(axis_y, axis_x, c=class_, s=100, alpha=0.4)  # attention! x and y are reversed!
+        color_set = [plt.cm.Set1(i) for i in class_]
+        plt.scatter(axis_y, axis_x, c=color_set, s=100, alpha=0.4)  # attention! x and y are reversed!
 
         # plot path for every agent
         for i, path in enumerate(paths):
@@ -396,15 +414,16 @@ def main():
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WR": False,
-              "n_agent": 2, "heuristic": "MST"}  # TSP,MST,agg_h, None
-    # start = None  # give the pos responding to n_agent
-    start = [(9, 5), (5, 7)]
+              "n_agent": 3, "heuristic": "MST"}  # TSP,MST,agg_h, None
+    start = None  # give the pos responding to n_agent
+    # start = [(9, 5), (5, 7)]   # 会聚类失败的例子
+    # start = [(1, 2), (0, 4)]   # 一个起点堵住另一个，导致无法平衡聚类
     test_times = 1
     # map = np.array([[1, 0, 0, 0],
     #                 [1, 0, 1, 1],
     #                 [0, 0, 0, 0],
-    #                 [0, 1, 1, 0],
     #                 [0, 0, 0, 0]])
+    # start = [(0, 1), (0, 2)]
     for file in files:
         print(file)
         map = read_map(file)

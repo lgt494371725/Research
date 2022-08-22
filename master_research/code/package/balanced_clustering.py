@@ -10,8 +10,7 @@ from copy import deepcopy
 
 
 class Cluster:
-    def __init__(self, central_idx, is_start=False):
-        self.is_start = is_start  # agent的起点是否在聚类中心里
+    def __init__(self, central_idx):
         self.central_idx = central_idx
         self.reachable = set()
         self.members = [central_idx]
@@ -81,7 +80,7 @@ class MyKmeans:
         for i in range(self.k):
             # idx = self.non_zero_idx[self.n_sample//self.k*i]  # 等距离选择聚类中心
             idx = self.n_start_pos[i]  # 选择agent的出发点作为各个聚类的中心
-            self.clusters.append(Cluster(idx, is_start=True))
+            self.clusters.append(Cluster(idx))
             distances[idx] = 0
             self.clusters[i].add_reachable(idx, self.edge_list[idx])
 
@@ -111,8 +110,6 @@ class MyKmeans:
                 for cluster in self.clusters:
                     to_remove = []  # 有些cell候补已经被别的簇拿走了，所以需要去掉
                     candidates = cluster.reachable  # reachable
-                    if cluster.is_start:  # True: 该簇已经有一个起点了，不允许有第二个
-                        candidates -= set(self.n_start_pos)
                     min_d = float('inf')
                     min_idx = -1
                     for c in candidates:
@@ -130,9 +127,6 @@ class MyKmeans:
                     cluster.add_member(min_idx, self.edge_list[min_idx])
                     is_change = True
                     distances[min_idx] = distances[cluster.get_predecessor(min_idx)] + 1
-                    if min_idx in self.n_start_pos:
-                        assert cluster.is_start is False
-                        cluster.is_start = True
 
             # 记录前一次聚类完成后的中心
             prev_centroids = [cluster.central_idx for cluster in self.clusters]
@@ -140,14 +134,11 @@ class MyKmeans:
             new_clusters = []
             new_distances = {idx: -1 for idx in self.non_zero_idx}
             for num, cluster in enumerate(self.clusters):
-                is_start = False
                 member_idx = [mapping[c] for c in cluster.members]
                 cluster_data = data[member_idx]
                 centroid = np.average(cluster_data, axis=0)
                 new_cen_idx = self.non_zero_idx[np.linalg.norm(data - centroid, axis=1).argmin()]
-                if new_cen_idx in self.n_start_pos:
-                    is_start = True
-                new_clusters.append(Cluster(new_cen_idx, is_start=is_start))
+                new_clusters.append(Cluster(new_cen_idx))
                 new_distances[new_cen_idx] = 0
                 new_clusters[num].add_reachable(new_cen_idx, self.edge_list[new_cen_idx])
             # 检测两次聚类中心的变化
@@ -158,7 +149,7 @@ class MyKmeans:
                 for cluster_code, cluster in enumerate(self.clusters):
                     idxes = [mapping[c] for c in cluster.members]
                     for idx in idxes:
-                        result[idx] = cluster_code
+                        result[idx] = cluster_code  # leave No.0 cluster to be common cell
                 assert -1 not in result
                 # predecessors中有一部分是预备加入的点而不是已经加入簇的，需要排除
                 for cluster in self.clusters:
@@ -189,43 +180,54 @@ class MyKmeans:
         mapping = {cell_num: idx for idx, cell_num in enumerate(self.non_zero_idx)}
         # mapping[5]=2 means the No.5 cell is the 2nd non_zero cell
         for i in range(self.max_iter):
-            for key, value in self.edge_list.items():
-                idx1 = mapping[key]
+            for real_cell_idx, edges in self.edge_list.items():  # plan to assign key-th cell to other cluster
+                idx1 = mapping[real_cell_idx]
                 cls_1 = clustering[idx1]
-                candidate = value
+                candidate = edges
                 for nxt_cell in candidate:
                     idx2 = mapping[nxt_cell]
                     cls_2 = clustering[idx2]
-                    if cls_1 == cls_2 or key in self.n_start_pos:
+                    if cls_1 == cls_2:  # real_cell_idx已经被分配过了
                         continue
-                    # 说明来自不同的cluster，是否分配需要进行连续性判断
+                    # from different cluster, do assign operation depending on feasibility checking
                     cls_1_size, cls_2_size = self.counter[cls_1], self.counter[cls_2]
                     if cls_1_size > self.balanced_size > cls_2_size:
-                        if self.feasibility_checking(key, cls_1):
+                        if self.feasibility_checking(real_cell_idx, cls_1):
                             self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
+                        # else:
+                        #     self.assign_to_cluster(clustering, idx1, cls_1, cls_2, common=True)
                     elif cls_1_size - cls_2_size > tolerance_size:
-                        if self.feasibility_checking(key, cls_1):
+                        if self.feasibility_checking(real_cell_idx, cls_1):
                             self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
+                        # else:
+                        #     self.assign_to_cluster(clustering, idx1, cls_1, cls_2, common=True)
                     elif 0 <= cls_1_size - cls_2_size <= tolerance_size:
                         weight_value = abs(cls_1_size - self.balanced_size) + abs(cls_2_size - self.balanced_size) \
                                        - abs(cls_1_size - 1 - self.balanced_size) - abs(
                             cls_2_size + 1 - self.balanced_size)
-                        if weight_value > 0 and self.feasibility_checking(key, cls_1):
-                            self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
+                        if weight_value > 0:
+                            if self.feasibility_checking(real_cell_idx, cls_1):
+                                self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
+                            # else:
+                            #     self.assign_to_cluster(clustering, idx1, cls_1, cls_2, common=True)
                     elif cls_1_size - cls_2_size < 0:
                         continue
         return clustering
 
-    def feasibility_checking(self, idx, cls_1):
+    def feasibility_checking(self, real_cell_idx, cls_1):
+        """
+        to check if cls_1 lose idx, are other cells influenced by it
+        if no successors, assign to other cluster is no effect
+        if yes, be sure successors can find any other predecessor in cls_1
+        """
         # print(f"checking {idx}")
         cur_cluster = deepcopy(self.clusters[cls_1])
-        successors = [success for success, pred in cur_cluster.predecessor.items() if pred == idx]
-        if successors:  # 有后继者，要保证其他后继者都能找到可连接的前驱节点
-            # 没有后继者，分配给别的簇也不会有影响
+        successors = [success for success, pred in cur_cluster.predecessor.items() if pred == real_cell_idx]
+        if successors:
             members = cur_cluster.members
             for suc in successors:
                 for new_pred in members:
-                    if new_pred == idx or suc == new_pred:
+                    if new_pred == real_cell_idx or suc == new_pred:
                         continue
                     a, b = suc, new_pred
                     if suc > new_pred:
@@ -237,21 +239,32 @@ class MyKmeans:
                 else:
                     # print(f"succ {suc} can't find new predecessor")
                     return False
-        cur_cluster.members.remove(idx)
-        cur_cluster.predecessor.pop(idx)
-        self.clusters[cls_1] = cur_cluster
         return True
 
-    def assign_to_cluster(self, clustering, idx, cls_1, cls_2):
+    def assign_to_cluster(self, clustering, idx, cls_1, cls_2, common=False):
         """
-        分配完后还有一些东西需要更改，如cluster2需要为新来的点进行操作
+        assign idx_cell from cls_1 to cls_2
         """
-        clustering[idx] = cls_2
-        cur_members = self.clusters[cls_2].members
-        real_cell_code = self.non_zero_idx[idx]
-        pred_idx = np.abs(np.array(cur_members) - real_cell_code).argmin()
-        self.clusters[cls_2].predecessor[real_cell_code] = cur_members[pred_idx]
-        self.clusters[cls_2].members.append(real_cell_code)
-        self.counter[cls_1] -= 1
-        self.counter[cls_2] += 1
-        print(f"assign {(real_cell_code // 21, real_cell_code % 21)} from {cls_1} to {cls_2}")
+        real_cell_idx = self.non_zero_idx[idx]
+        if not common:
+            # remove cell from cls_1
+            self.clusters[cls_1].members.remove(real_cell_idx)
+            self.clusters[cls_1].predecessor.pop(real_cell_idx)
+            # add to cls_2
+            clustering[idx] = cls_2
+            cur_members = self.clusters[cls_2].members
+            pred_idx = np.abs(np.array(cur_members) - real_cell_idx).argmin()
+            self.clusters[cls_2].predecessor[real_cell_idx] = cur_members[pred_idx]
+            self.clusters[cls_2].members.append(real_cell_idx)
+            self.counter[cls_1] -= 1
+            self.counter[cls_2] += 1
+            print(f"assign {(real_cell_idx // 4, real_cell_idx % 4)} from cls_{cls_1} to cls_{cls_2}")
+        # else:
+        #     # add to cls_2
+        #     clustering[idx] = self.common
+        #     cur_members = self.clusters[cls_2].members
+        #     pred_idx = np.abs(np.array(cur_members) - real_cell_idx).argmin()
+        #     self.clusters[cls_2].predecessor[real_cell_idx] = cur_members[pred_idx]
+        #     self.clusters[cls_2].members.append(real_cell_idx)
+        #     self.counter[cls_2] += 1
+        #     print(f"assign {(real_cell_idx // 4, real_cell_idx % 4)} from cls_{cls_1} to cls_{cls_2} with common")

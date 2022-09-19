@@ -329,7 +329,7 @@ class WatchmanRouteProblem:
                 if self.map[x, y] == 0:
                     code = self.encode(x, y)
                     self.empty_cells.add(code)
-                    self.LOS[code] = self.LOS8(code)
+                    self.LOS[code] = self.LOS4(code)
                     for num in range(code + 1, self.h * self.w):  # 与其他所有点的最短距离
                         cell_x, cell_y = self.decode(num)
                         if self.map[cell_x, cell_y] == 1:

@@ -36,6 +36,7 @@ class WatchmanRouteProblem:
         self.DF_factor = params.get("DF_factor")
         self.IW, self.WR = params.get("IW"), params.get("WR")
         self.heuristic = params.get("heuristic")
+        self.silent = params.get("silent")
 
     def add_seen(self, seen, LOS):
         return seen | (LOS & self.empty_cells)
@@ -48,11 +49,12 @@ class WatchmanRouteProblem:
         while not self.is_finish(cur_state):
             self.next_step(cur_state)
             cur_state = self.pq.pop_()
-        print(
-            "running time:{} s, expanding nodes:{}, start point:{}, path length: {}".format(time.perf_counter() - start,
-                                                                                            self.nodes,
-                                                                                            self.decode(self.start),
-                                                                                            len(cur_state.path)))
+        if not self.silent:
+            print(
+                "running time:{} s, expanding nodes:{}, start point:{}, path length: {}".format(time.perf_counter() - start,
+                                                                                                self.nodes,
+                                                                                                self.decode(self.start),
+                                                                                                len(cur_state.path)-1))
         return cur_state.path
 
     def next_step(self, cur_state):

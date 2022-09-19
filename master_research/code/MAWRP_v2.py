@@ -1,17 +1,22 @@
 """
-version 2.4
-删除平衡聚类时对于起点的指定规则
-允许路线重叠
-优化视觉效果
+version 2.5
+修复平衡聚类的失败问题
+
 """
+import numpy as np
+
 from package import *
 from WRP_solver import WatchmanRouteProblem
 
 
 class State:
-    def __init__(self, watchmen):
+    def __init__(self, watchmen, h, w):
+        self.h = h
+        self.w = w
         self.watchmen = watchmen
-        self.A_star_v_l2 = 0  # higher level
+        self.A_star_v = 0  # higher level
+        self.calc_A_star_v()
+        self.clustering = None
 
     def is_all_finish(self):
         return False
@@ -24,8 +29,32 @@ class State:
         for w in self.watchmen:
             if w.get_number() == number:
                 return w
-        print("not found".center(30, '='))
+        print("watchman not found".center(30, '='))
         return
+
+    def update_watchman(self, new_watchman):
+        for num, watchman in enumerate(self.watchmen):
+            if watchman.get_number() == new_watchman.get_number():
+                self.watchmen[num] = new_watchman
+                break
+        else:
+            print("watchman not found".center(30, '='))
+        self.calc_A_star_v()
+
+    def calc_A_star_v(self):
+        paths_len = [len(i)-1 for i in self.get_paths()]
+        self.A_star_v = np.mean(paths_len) + max(paths_len)
+
+    def get_class(self, no_obstacles=False):
+        """
+        :param no_obstacles:  if true, remove cells which are obstacles
+        """
+        clustering = np.array([-1]*(self.h*self.w))
+        for w in self.watchmen:
+            clustering[list(w.empty_cells)] = w.get_number()
+        if no_obstacles:
+            clustering = clustering[clustering != -1]
+        return clustering
 
 
 class Watchman:
@@ -35,14 +64,21 @@ class Watchman:
         self.empty_cells = set()
         self.edge_list = {}
         self.path = None
-        self.can_see = set()
+        # self.can_see = set()
 
-    def calc_can_see(self, LOS):
-        for cell in self.path:
-            self.can_see |= set(LOS[cell])
+    # def calc_can_see(self, LOS):
+    #     for cell in self.path:
+    #         self.can_see |= set(LOS[cell])
+    #     assert self.can_see == self.empty_cells
 
     def get_number(self):
         return self.No
+
+    def get_path_len(self):
+        if self.path is None:
+            print("no path exist!!")
+            return
+        return len(self.path)
 
 
 class MWRP:
@@ -85,42 +121,59 @@ class MWRP:
         if self.params['write_to_file']:
             f = open(f"../results/{self.n_agent}_agent_test_results.txt", "w+")
         max_paths_len = []
-        for i in range(test_times):
+        for i in trange(test_times):
+            # try:
+
+            # initial stage
             self.initialize()
             # initial_time = time.perf_counter() - start
             # print("initialization complete! time:{} s,".format(initial_time))
             class_ = self.clustering()
-            paths = []
             # self.visualize([], class_=class_)
             self.watchmen_init(class_)
             for w in self.watchmen:
-                temp_params = self.params
-                temp_params['empty_cells'] = w.empty_cells
-                temp_params['edge_list'] = w.edge_list
-                sol = WatchmanRouteProblem(self.map, w.start, **temp_params)
-                result = sol.run()
-                w.path = result
-                paths.append(result)
-            self.visualize(paths, class_=class_)
+                w.path = self.solve_WRP(w)
+            cur_state = State(self.watchmen, h=self.h, w=self.w)
+            self.visualize(cur_state.get_paths(), class_=class_)
+            best_state = cur_state
+
+            # improve stage
+            max_iter = 300
+            early_stop = 0
+            for loop in range(max_iter):  # loop until result converges
+                self.next_step(cur_state)
+                if self.pq_l2.is_empty():
+                    break
+                cur_state = self.pq_l2.pop_()
+                if best_state.A_star_v >= cur_state.A_star_v:  # 停止条件需要接着优化
+                    best_state = cur_state
+                else:
+                    early_stop += 1
+                    if early_stop == 10:
+                        print("result has been stable, early stop!!")
+                        break
+                # self.visualize(cur_state.get_paths(), class_=cur_state.get_class(no_obstacles=True))
+            assert self.check_finish(best_state.get_paths()), "wrong answer！"
+            self.visualize(best_state.get_paths(), class_=best_state.get_class(no_obstacles=True))
+            # log
+            paths = best_state.get_paths()
             paths_length = [*map(len, paths)]
             max_paths_len.append(max(paths_length) - 1)
             if self.params['write_to_file']:
                 f.write(f"round{i}:start_pos:{self.start}, paths length:{paths_length}, min_sum:{sum(paths_length)}"
                         f", min_max:{max(paths_length)}\n")
-            # cur_state = State(self.watchmen)
-            # while not cur_state.is_all_finish():  # 中止条件不对,改为一定时间内如果2-layer A* 没有提升就停止
-            #     # self.visualize(cur_state.path)
-            #     self.next_step(cur_state)
-            #     cur_state = self.pq_l2.pop_()
-            # self.visualize(cur_state.get_paths(), class_=class_)
-            # assert self.check_finish(cur_state.get_paths()), "wrong answer！"
             self.restart()
+
+            # except Exception as e:
+            #     print(f"----------main program wrong:{e}")
+            #     self.restart()
+            #     continue
         end_time = time.perf_counter()
-        print("total time:{}s, expanding nodes:{}"
+        print("total time:{:.3f}s, expanding nodes:{}"
               .format(end_time - start,
                       self.nodes))
         if self.params['write_to_file']:
-            f.write("total time:{}s, expanding nodes:{}, successful time:{}, avg_max_paths_len:{}, per_exe_time:{}\n"
+            f.write("total time:{.3f}s, expanding nodes:{}, successful time:{}, avg_max_paths_len:{}, per_exe_time:{}\n"
                     .format(end_time - start,
                             self.nodes,
                             len(max_paths_len),
@@ -137,6 +190,7 @@ class MWRP:
         selected = [0 for i in range(self.n_agent)]  # for designating start point
         real_cell_idx = sorted(list(self.empty_cells))  # after removing obstacles, the idx have changed
         for cur_class in range(n_class):
+            assert isinstance(class_, np.ndarray)
             class_idx = np.where(class_ == cur_class)[0]  # 外面包了一层元组类型,需要去掉
             temp_watchman = self.watchmen[cur_class]
             temp_empty_cells = [real_cell_idx[idx] for idx in class_idx]  # need convert to set type later
@@ -188,11 +242,16 @@ class MWRP:
         matrix = np.zeros((self.h * self.w, self.h * self.w + 2))
         for pos, d in self.APSP_d.items():
             matrix[[pos[0], pos[1]], [pos[1], pos[0]]] = d  # np.log1p(d)
-        # matrix[:, -1] = np.random.randint(0, self.h*self.w//2, size=self.h*self.w)  如果给需要给特征矩阵多加一个随机特征的话
 
         non_zero_idx = np.where(matrix.sum(axis=1) != 0)[0]  # np.where return tuple type, need [0] to get result
         # if non_zero_idx[0]=5, means the first non-obstacle cell is No.5 cell
         matrix[:, -2:] = np.array([self.decode(i) for i in range(self.h * self.w)])
+
+        # add random features
+        # random_m = np.random.randint(0, self.h*self.w//2, size=(self.h*self.w, self.h*self.w//4))
+        # matrix = np.hstack((matrix, random_m))
+
+        # remove obstacle cell_idx
         matrix = matrix[non_zero_idx, :]
         # result = KMeans(self.n_agent).fit_predict(matrix)
         n_start_pos = [self.encode(pos[0], pos[1]) for pos in self.start]
@@ -218,79 +277,99 @@ class MWRP:
         """
         每个watchman都要准备好下一步，推入pq_l1,pq_l1的队中元素是watchman class
         """
-        watchmen_can_see_m = np.zeros((self.n_agent, self.h * self.w))
-        for w in cur_state.watchmen:
-            w.calc_can_see(self.LOS)
-            watchmen_can_see_m[w.get_number(), list(w.can_see)] = 1
-        duplicated_cell_from = {}
-        for cell in self.empty_cells:  # every cell is seen by which watchman
-            idxs_from = np.where(watchmen_can_see_m[:, cell] == 1)[0]
-            if len(idxs_from) == 2:   # 有可能出现3个的情况，还不知道如何处理
-                # assert len(idxs_from) == 2  # to check one cell can be observed by at most two watchmen
-                duplicated_cell_from[cell] = idxs_from
-        for cell, idxs_from in duplicated_cell_from.items():
-            self.show_real_pos([cell])
-            watchman_1_num, watchman_2_num = idxs_from
-            watchman_1 = cur_state.get_watchman(watchman_1_num)
-            watchman_2 = cur_state.get_watchman(watchman_2_num)
-            if len(watchman_1.path) > len(watchman_2.path):  # to assure watchman1's path is shorter
-                watchman_1, watchman_2 = watchman_2, watchman_1
-                watchman_1_num, watchman_2_num = watchman_2_num, watchman_1_num
-            watchman_1_path = watchman_1.path
-            watchman_2_path = watchman_2.path
-            """
-            如果两个簇的路径长度类似，无视
-            如果同时在两个簇的路径上，无视
-            如果在小簇路径上，则无视
-            重复被看的cell如果在大簇的路径上，那么进行分配
-            """
-            assert len(watchman_1_path) <= len(watchman_2_path)
-            if len(watchman_2_path) - len(watchman_1_path) < 3:
-                continue
-            if cell in watchman_2_path:
-                if cell in watchman_1_path:
+        tolerance_size = 3
+        clustering = cur_state.get_class()
+        # 获取所有cell都属于哪个watchman
+        for cell, candidate in self.edge_list.items():  # plan to assign cell from cls_1 to cls_2
+            cls_1 = clustering[cell]
+            watchman_1 = cur_state.get_watchman(cls_1)
+            path_len_cls_1 = watchman_1.get_path_len()
+            for nxt_cell in candidate:
+                cls_2 = clustering[nxt_cell]
+                watchman_2 = cur_state.get_watchman(cls_2)
+                path_len_cls_2 = watchman_2.get_path_len()
+                # cls_1的路径长度必须超过cls_2，才考虑分配
+                if cls_1 == cls_2 or (path_len_cls_1-path_len_cls_2 < tolerance_size):
                     continue
-                # assign cell from watchman_2 to watchman_1
-                cell_idx_in_path = np.where(watchman_2_path == cell)[0]
+                """
+                from different watchman and length demand satisfied, do assign operation
+                find the closest cell in the path
+                """
+                # self.show_real_pos([cell, nxt_cell])
+                path_cls_1 = watchman_1.path
+                distances = [self.get_APSP(cell, c, distance=True) for c in path_cls_1]
+                closest_idx = path_cls_1[np.argmin(distances)]
+                # if start point, skip
+                if closest_idx == self.encode(watchman_1.start[0], watchman_1.start[1]):
+                    continue
+
+                path_to_closest_idx = set(self.get_APSP(cell, closest_idx, distance=False))
+                # 考虑分配这个点会影响到的所有点
+                cell_idx_in_path = np.where(np.array(path_cls_1) == closest_idx)[0]
+                assert isinstance(path_cls_1, list)
                 if len(cell_idx_in_path) == 1:  # appears only once in the route
-                    need_to_assigns = set(watchman_2_path[cell_idx_in_path[0]:])
-                    new_watchman_2_path = watchman_2_path[:cell_idx_in_path[0]]
+                    need_to_assigns = path_cls_1[cell_idx_in_path[0]:]
+                    new_path_cls_1 = path_cls_1[:cell_idx_in_path[0]]
                 elif len(cell_idx_in_path) == 2:
-                    need_to_assigns = set(watchman_2_path[cell_idx_in_path[0]:cell_idx_in_path[1] + 1])
-                    new_watchman_2_path = watchman_2_path[:cell_idx_in_path[0]] + \
-                                          watchman_2_path[cell_idx_in_path[1] + 1:]
+                    need_to_assigns = path_cls_1[cell_idx_in_path[0]:cell_idx_in_path[1] + 1]
+                    new_path_cls_1 = path_cls_1[:cell_idx_in_path[0]] + \
+                                          path_cls_1[cell_idx_in_path[1] + 1:]
                 else:  # too many times, give up assigning
                     continue
+                if len(need_to_assigns) > 1:
+                    # 为succ寻找是否存在新的前接节点, 如果存在，只需要去掉当前点即可，后续路径保留
+                    succ = need_to_assigns[1]
+                    for c in new_path_cls_1:
+                        if self.get_APSP(succ, c, distance=True) <= 1:  # 找到后继点
+                            # self.show_real_pos([succ, c])
+                            need_to_assigns = [need_to_assigns[0]]
+                            break
+                # path_to_closest_idx also need to assign
+                need_to_assigns = set(need_to_assigns)
+                need_to_assigns |= path_to_closest_idx
                 # except cells on the path, there may be some outliers come out
-                new_can_see = set()
-                for cell_ in new_watchman_2_path:  # to distinguish with cell in the outer loop
-                    new_can_see |= set(self.LOS[cell_])
-                outliers = watchman_2.can_see - new_can_see
-                self.show_real_pos(need_to_assigns)
+                left_cells = cur_state.get_watchman(cls_1).empty_cells - need_to_assigns
+                left_cells = [self.decode(i) for i in left_cells]
+                new_can_reach = depth_first_search(self.map, left_cells, self.decode(new_path_cls_1[0]))
+                new_can_reach = set([self.encode(x, y) for x, y in new_can_reach])
+                outliers = cur_state.get_watchman(cls_1).empty_cells - new_can_reach
+                # self.show_real_pos(need_to_assigns)
                 need_to_assigns |= outliers
-                self.show_real_pos(need_to_assigns)
+                # self.show_real_pos(need_to_assigns)
 
-                # self.assign(cell, watchman_1, watchman_2)
-        # new_x, new_y = self.decode(new_pos)
-        # path = deepcopy(self.get_APSP(cur_state.cur_pos, new_pos, distance=False))  # the path will go through
-        # # print(f"cur_pos:{a} to new_pos:{b}: {path}")
-        # assert 0 <= new_x < self.h and 0 <= new_y < self.w and self.map[new_x][new_y] != 1
-        # temp_state = deepcopy(cur_state)
-        # cur_path = temp_state.path
-        # if path[-1] != new_pos:
-        #     path = path[::-1]
-        # path.remove(cur_state.cur_pos)
-        # cur_path.extend(path)
-        # cur_seen = temp_state.seen
-        # for cell in path:
-        #     cur_seen = cur_seen | self.LOS[cell]
-        # h_value = self.calc_h(
-        #     cur_path)
-        # # h_value = 0
-        # # print("h_value:", h_value)
-        # A_star_v = self.calc_A_stat_v(len(cur_path), h_value, w=self.f_weight, option=self.f_option)
-        # self.pq.push_(State(cur_path, cur_seen, A_star_v))
-        # self.nodes += 1
+                # adjust new watchmen empty cell and edge_list
+                new_watchman_1 = deepcopy(watchman_1)
+                new_watchman_1.empty_cells -= need_to_assigns
+                new_watchman_1.edge_list = self.calc_new_edge_list(new_watchman_1.empty_cells)
+
+                new_watchman_2 = deepcopy(watchman_2)
+                new_watchman_2.empty_cells |= need_to_assigns
+                new_watchman_2.edge_list = self.calc_new_edge_list(new_watchman_2.empty_cells)
+                # clustering[list(new_watchman_2.empty_cells)] = new_watchman_2.get_number()
+
+                # calc new path len
+                new_watchman_1.path = self.solve_WRP(new_watchman_1)
+                new_watchman_2.path = self.solve_WRP(new_watchman_2)
+                # 剩下的步骤是生成新的状态，然后放入队列中
+                new_state = deepcopy(cur_state)
+                new_state.update_watchman(new_watchman_1)
+                new_state.update_watchman(new_watchman_2)
+                self.pq_l2.push_(new_state)
+        return None
+
+    def calc_new_edge_list(self, empty_cells):
+        temp_edge_list = {}
+        for c in empty_cells:
+            temp_edge_list[c] = list(set(self.edge_list[c]) & empty_cells)
+        return temp_edge_list
+
+    def solve_WRP(self, watchman):
+        temp_params = self.params
+        temp_params['empty_cells'] = watchman.empty_cells
+        temp_params['edge_list'] = watchman.edge_list
+        sol = WatchmanRouteProblem(self.map, watchman.start, **temp_params)
+        result = sol.run()
+        return result
 
     def calc_h(self, paths) -> int:
         return 0
@@ -317,7 +396,10 @@ class MWRP:
         if a > b:
             a, b = b, a
         elif a == b:
-            return 0
+            if distance:
+                return 0
+            else:
+                return []
         return self.APSP_d[(a, b)] if distance else self.APSP[(a, b)]
 
     def initialize(self):
@@ -489,11 +571,13 @@ def main():
     files = os.listdir(path)
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",
-              "DF_factor": 2, "IW": True, "WR": False,
-              "n_agent": 2, "heuristic": "MST", "write_to_file": False}  # TSP,MST,agg_h, None
+              "DF_factor": 2, "IW": True, "WR": True,
+              "n_agent": 1, "heuristic": "MST", "write_to_file": False,
+              "silent": True}  # TSP,MST,agg_h, None
     # start = None  # give the pos responding to n_agent
-    # start = [(9, 5), (5, 7)]   # 会聚类失败的例子
-    start = [(10, 1), (5, 10)]
+    # start = [(8, 5), (1, 1)]  agent2
+    # start = [(10, 1), (0, 0), (10, 10)]  # recently for test, agent 3
+    start = [(0, 0)]
     test_times = 1
     # map = np.array([[1, 0, 0, 0],
     #                 [1, 0, 1, 1],

@@ -1,5 +1,6 @@
 from .GRAPH import Graph
 from .GRAPH import Vertex
+from .GRAPH import depth_first_search
 from .LOS import LOS4, LOS8
 from .MST_kruskal import MiniSpanTree_kruskal
 import time
@@ -18,3 +19,4 @@ from collections import Counter
 from .PQ import PriorityQueue
 # from .balanced_clustering import get_even_clusters
 from .balanced_clustering import MyKmeans
+from tqdm import tqdm, trange

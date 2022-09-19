@@ -6,9 +6,6 @@ from collections import Counter
 from copy import deepcopy
 
 
-# https://www.scipopt.org/
-
-
 class Cluster:
     def __init__(self, central_idx):
         self.central_idx = central_idx
@@ -22,11 +19,18 @@ class Cluster:
     #     # 如何判断是不是extensible/边界点, 当与障碍物相接时不算，先不考虑
 
     def add_member(self, cell, reachable):
+        """
+        add new member to cluster and remove it from reachable
+        update reachable
+        """
         self.members.append(cell)
         self.remove_reachable([cell], extensible=True)
         self.add_reachable(cell, reachable)
 
     def add_reachable(self, predecessor, cells):
+        """
+        add new reachable cells, and they are all connecting to predecessor
+        """
         cells = set(cells) - set(self.members)  # exclude existing cells in cluster
         self.reachable |= cells
         for cell in cells:
@@ -37,7 +41,9 @@ class Cluster:
 
     def remove_reachable(self, cells, extensible=False):
         """
-        有两种情况会用到这，一种是cell已经被别的簇占有，另一种是该cell从reachable晋升为extensible
+        case1: this cell has been owned by other cluster, need to remove
+        case2: this cell transform from reachable to extensible
+        if case1: this cell is not predecessor in this cluster anymore. need to remove from "self.predecessor"
         """
         for cell in cells:
             if not extensible:  # If extensible is True, no need to pop
@@ -50,7 +56,6 @@ class MyKmeans:
     """
     可以基于这个去做一些调整
     """
-
     def __init__(self, k, non_zero_idx, APSP_d, edge_list, n_start_pos, max_iter=300):
         """
         :param k:
@@ -194,13 +199,13 @@ class MyKmeans:
                     if cls_1_size > self.balanced_size > cls_2_size:
                         if self.feasibility_checking(real_cell_idx, cls_1):
                             self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
+                            break   # 如果分配成功，cls_1此时已经改变，需要从外层循环开始重新加载
                         # else:
                         #     self.assign_to_cluster(clustering, idx1, cls_1, cls_2, common=True)
                     elif cls_1_size - cls_2_size > tolerance_size:
                         if self.feasibility_checking(real_cell_idx, cls_1):
                             self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
-                        # else:
-                        #     self.assign_to_cluster(clustering, idx1, cls_1, cls_2, common=True)
+                            break
                     elif 0 <= cls_1_size - cls_2_size <= tolerance_size:
                         weight_value = abs(cls_1_size - self.balanced_size) + abs(cls_2_size - self.balanced_size) \
                                        - abs(cls_1_size - 1 - self.balanced_size) - abs(
@@ -208,8 +213,7 @@ class MyKmeans:
                         if weight_value > 0:
                             if self.feasibility_checking(real_cell_idx, cls_1):
                                 self.assign_to_cluster(clustering, idx1, cls_1, cls_2)
-                            # else:
-                            #     self.assign_to_cluster(clustering, idx1, cls_1, cls_2, common=True)
+                                break
                     elif cls_1_size - cls_2_size < 0:
                         continue
         return clustering
@@ -248,7 +252,7 @@ class MyKmeans:
         real_cell_idx = self.non_zero_idx[idx]
         if not common:
             # remove cell from cls_1
-            self.clusters[cls_1].members.remove(real_cell_idx)
+            self.clusters[cls_1].members.remove(real_cell_idx)  # 出错地
             self.clusters[cls_1].predecessor.pop(real_cell_idx)
             # add to cls_2
             clustering[idx] = cls_2

@@ -1,8 +1,7 @@
 """
-增加f的计算方法
-增加Ignore White Cells 选项 （IW）
-增加Bounding the Jump Points 选项
-增加weakly pivot选项（正确性待验证）
+2022.9.19
+add new visualize function
+update initialize function
 """
 import numpy as np
 import time
@@ -12,7 +11,7 @@ from copy import deepcopy
 from collections import deque, defaultdict
 from heapq import *
 from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import minimum_spanning_tree
+from scipy.sparse.csgraph import minimum_spanning_tree, floyd_warshall
 import matplotlib.pyplot as plt
 from python_tsp.exact import solve_tsp_dynamic_programming
 from python_tsp.heuristics import solve_tsp_local_search
@@ -388,27 +387,27 @@ class WatchmanRouteProblem:
                 edge_list[edge_num] = list(set(edge_list[edge_num]))  # prevent duplicates
         return edge_list
 
+    def get_path_from_pred(self, pred_m, start, end):
+        path = [end]
+        pred = pred_m[start, end]
+        while pred != start:
+            path.append(pred)
+            pred = pred_m[start, pred]
+        path.append(start)
+        return path[::-1]
+
     def initialize(self):
         """
         prepare two lookup tables for efficiency
         """
+        adjacent_matrix = np.zeros((self.h * self.w, self.h * self.w))
         for x in range(self.h):
             for y in range(self.w):
                 if self.map[x, y] == 0:
                     code = self.encode(x, y)
                     self.empty_cells.add(code)
                     self.LOS[code] = self.LOS4(code)
-                    for num in range(code + 1, self.h * self.w):  # 与其他所有点的最短距离
-                        cell_x, cell_y = self.decode(num)
-                        if self.map[cell_x, cell_y] == 1:
-                            continue
-                        path, d = self.minimum_d((x, y), (cell_x, cell_y))
-                        a, b = code, num
-                        # make sure a is smaller
-                        assert a < b
-                        self.APSP_d[(a, b)] = d
-                        self.APSP[(a, b)] = path
-                    # build edge list
+                    # build edge list and adjacent matrix
                     for new_x, new_y in [(x + 1, y), (x, y + 1)]:  # 图会自动建立双向边,所以只需要向前考虑
                         if 0 <= new_x < self.h and 0 <= new_y < self.w and self.map[new_x][new_y] != 1:
                             start = self.encode(x, y)
@@ -421,6 +420,20 @@ class WatchmanRouteProblem:
                                 self.edge_list[end] = [start]
                             else:
                                 self.edge_list[end].append(start)
+                            # build adjacent matrix
+                            adjacent_matrix[[start, end], [end, start]] = 1
+        # build APSP and APSP_d
+        graph = csr_matrix(adjacent_matrix)
+        dist_matrix, predecessors = floyd_warshall(csgraph=graph, directed=False, return_predecessors=True)
+        temp_list = list(self.empty_cells)
+        temp_list.sort()
+        for i in range(len(temp_list)):
+            a = temp_list[i]
+            for j in range(i + 1, len(temp_list)):
+                b = temp_list[j]
+                self.APSP[(a, b)] = self.get_path_from_pred(predecessors, a, b)
+                self.APSP_d[(a, b)] = int(dist_matrix[a, b])
+        del temp_list, dist_matrix, predecessors
 
     def minimum_d(self, start, end):
         """
@@ -463,12 +476,20 @@ class WatchmanRouteProblem:
         """
         return len(cur_state.seen) == len(self.empty_cells)
 
+    def plot_lines(self, mat_w, mat_h):
+        left_border = up_border = -0.5
+        right_border, down_border = mat_w - 0.5, mat_h - 0.5
+        plt.hlines([i - 0.5 for i in range(mat_h)], left_border, right_border, color='black')
+        plt.vlines([i - 0.5 for i in range(mat_w)], up_border, down_border, color='black')
+
     def visualize(self, path):
         """
         see where the cell is
         """
-        print(f"length:{len(path)}", path)
+        print(f"length:{len(path)-1}", path)
         plt.matshow(-self.map, cmap=plt.cm.hot)
+        mat_w, mat_h = len(self.map[0]), len(self.map)
+        self.plot_lines(mat_w, mat_h)
         start_x, start_y = self.decode(self.start)
         plt.text(start_y, start_x, s='start', fontsize='large', ha='center', va='center')
         length = len(path)

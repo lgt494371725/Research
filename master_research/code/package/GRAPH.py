@@ -61,3 +61,20 @@ class Graph:  # 创建的是有向图
 
     def __iter__(self):  # 返回的是顶点实例，然后会触发顶点中的__str__方法
         return iter(self.verlist.values())
+
+
+def depth_first_search(map, can_reach, start):
+    """
+    :param map:  2-d array   1 means obstacles
+    :param start:
+    """
+    h, w = len(map), len(map[0])
+    all_reach = [start]
+    stack = [start]
+    while stack:
+        x, y = stack.pop(0)
+        for new_x, new_y in [(x-1, y), (x+1, y), (x, y-1), (x, y+1)]:
+            if h > new_x >= 0 == map[x][y] and 0 <= new_y < w and (new_x, new_y) not in all_reach and (new_x, new_y) in can_reach:
+                stack.append((new_x, new_y))
+                all_reach.append((new_x, new_y))
+    return all_reach

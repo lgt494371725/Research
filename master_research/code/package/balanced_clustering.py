@@ -262,7 +262,7 @@ class MyKmeans:
             self.clusters[cls_2].members.append(real_cell_idx)
             self.counter[cls_1] -= 1
             self.counter[cls_2] += 1
-            print(f"assign {(real_cell_idx // 4, real_cell_idx % 4)} from cls_{cls_1} to cls_{cls_2}")
+            # print(f"assign {(real_cell_idx // 4, real_cell_idx % 4)} from cls_{cls_1} to cls_{cls_2}")
         # else:
         #     # add to cls_2
         #     clustering[idx] = self.common

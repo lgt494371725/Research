@@ -2,6 +2,7 @@
 2022.9.19
 add new visualize function
 update initialize function
+add random start
 """
 import numpy as np
 import time
@@ -15,6 +16,7 @@ from scipy.sparse.csgraph import minimum_spanning_tree, floyd_warshall
 import matplotlib.pyplot as plt
 from python_tsp.exact import solve_tsp_dynamic_programming
 from python_tsp.heuristics import solve_tsp_local_search
+from tqdm import trange
 
 
 class PriorityQueue:
@@ -66,27 +68,31 @@ class WatchmanRouteProblem:
         self.f_weight, self.f_option = params.get("f_weight"), params.get("f_option")
         self.DF_factor = params.get("DF_factor")
         self.IW, self.WP = params.get("IW"), params.get("WP")
+        self.obstacles = 0
 
     def run(self, test_times):
         # self.visualize([])
         self.initialize()
         seen = self.LOS[self.start]
         path = [self.start]
-        print("LOS:", self.LOS)
-        # print("APSP_d:", self.APSP_d)
-        # print("APSP:", self.APSP[(43, 64)])
+        # print("LOS:", self.LOS)
         start = time.perf_counter()
-        for i in range(test_times):
+        paths_len = []
+        for i in trange(test_times):
             cur_state = State(path, seen)
             while not self.is_finish(cur_state):
                 # self.visualize(cur_state.path)
                 self.next_step(cur_state)
                 cur_state = self.pq.pop_()
             self.visualize(cur_state.path)
+            paths_len.append(len(cur_state.path)-1)
             assert self.check_finish(cur_state.path), "路径有误！"
             seen = self.LOS[self.start]
             path = [self.start]
-        print("running time:{} s, expanding nodes:{}".format(time.perf_counter() - start, self.nodes))
+            self.start = np.random.choice(list(self.empty_cells), 1, replace=False)[0]
+        print(f"map_size:{(self.h, self.w)}, obstacles:{self.obstacles}")
+        print("running time:{:.3f} s, expanding nodes:{}, avg_path_len:{}".
+              format((time.perf_counter() - start), self.nodes, np.mean(paths_len)))
 
     def check_finish(self, path):
         map_ = self.map.copy()
@@ -422,6 +428,8 @@ class WatchmanRouteProblem:
                                 self.edge_list[end].append(start)
                             # build adjacent matrix
                             adjacent_matrix[[start, end], [end, start]] = 1
+                else:
+                    self.obstacles += 1
         # build APSP and APSP_d
         graph = csr_matrix(adjacent_matrix)
         dist_matrix, predecessors = floyd_warshall(csgraph=graph, directed=False, return_predecessors=True)

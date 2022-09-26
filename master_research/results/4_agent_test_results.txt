@@ -1,2 +1,34 @@
-round0:start_pos:[(3, 7), (8, 3), (8, 6), (10, 2)], paths length:[21, 19, 17, 12], min_sum:69, min_max:21
-total time:0.9838821s, expanding nodes:0, successful time:1, avg_max_paths_len:20.0, per_exe_time:0.9838821
+round0:start_pos:[(10, 4), (10, 5), (20, 5), (0, 9)], paths length:[74, 42, 19, 52], min_sum:187, min_max:74
+round1:start_pos:[(14, 14), (16, 18), (10, 14), (17, 10)], paths length:[66, 35, 59, 65], min_sum:225, min_max:66
+round2:start_pos:[(13, 0), (0, 10), (20, 11), (16, 5)], paths length:[50, 61, 54, 62], min_sum:227, min_max:62
+round3:start_pos:[(20, 14), (4, 6), (20, 5), (3, 16)], paths length:[61, 51, 36, 56], min_sum:204, min_max:61
+round4:start_pos:[(16, 8), (8, 14), (0, 12), (0, 10)], paths length:[63, 25, 67, 51], min_sum:206, min_max:67
+round5:start_pos:[(20, 20), (6, 18), (10, 16), (1, 10)], paths length:[37, 65, 80, 77], min_sum:259, min_max:80
+round6:start_pos:[(20, 8), (4, 5), (20, 20), (8, 2)], paths length:[55, 50, 55, 51], min_sum:211, min_max:55
+round7:start_pos:[(17, 12), (16, 6), (6, 2), (4, 4)], paths length:[52, 61, 61, 53], min_sum:227, min_max:61
+round8:start_pos:[(4, 4), (14, 8), (8, 10), (18, 12)], paths length:[49, 41, 63, 57], min_sum:210, min_max:63
+round9:start_pos:[(0, 12), (8, 4), (4, 0), (12, 14)], paths length:[53, 73, 37, 57], min_sum:220, min_max:73
+round10:start_pos:[(10, 4), (16, 13), (3, 0), (5, 18)], paths length:[59, 66, 54, 50], min_sum:229, min_max:66
+round11:start_pos:[(15, 2), (6, 10), (8, 2), (20, 6)], paths length:[42, 41, 43, 81], min_sum:207, min_max:81
+round12:start_pos:[(14, 11), (20, 6), (8, 11), (0, 1)], paths length:[52, 37, 58, 44], min_sum:191, min_max:58
+round13:start_pos:[(20, 10), (5, 2), (3, 0), (2, 13)], paths length:[73, 40, 46, 38], min_sum:197, min_max:73
+round14:start_pos:[(17, 20), (1, 10), (9, 10), (14, 20)], paths length:[16, 72, 44, 73], min_sum:205, min_max:73
+round15:start_pos:[(11, 4), (13, 10), (4, 10), (20, 3)], paths length:[40, 52, 55, 46], min_sum:193, min_max:55
+round16:start_pos:[(20, 14), (10, 4), (9, 8), (19, 6)], paths length:[44, 59, 58, 47], min_sum:208, min_max:59
+round17:start_pos:[(5, 6), (14, 12), (5, 12), (18, 2)], paths length:[54, 53, 52, 51], min_sum:210, min_max:54
+round18:start_pos:[(6, 18), (20, 11), (0, 12), (13, 0)], paths length:[49, 74, 49, 46], min_sum:218, min_max:74
+round19:start_pos:[(14, 2), (13, 0), (7, 10), (0, 18)], paths length:[58, 58, 69, 61], min_sum:246, min_max:69
+round20:start_pos:[(18, 4), (20, 18), (16, 8), (12, 6)], paths length:[51, 57, 7, 83], min_sum:198, min_max:83
+round21:start_pos:[(4, 9), (0, 4), (3, 0), (0, 7)], paths length:[72, 67, 46, 46], min_sum:231, min_max:72
+round22:start_pos:[(11, 18), (2, 12), (8, 10), (14, 13)], paths length:[40, 59, 55, 58], min_sum:212, min_max:59
+round23:start_pos:[(12, 11), (10, 13), (2, 17), (0, 4)], paths length:[60, 54, 38, 55], min_sum:207, min_max:60
+round24:start_pos:[(11, 16), (7, 12), (0, 0), (6, 3)], paths length:[76, 44, 53, 64], min_sum:237, min_max:76
+round25:start_pos:[(2, 6), (10, 18), (20, 20), (17, 10)], paths length:[65, 64, 39, 67], min_sum:235, min_max:67
+round26:start_pos:[(14, 11), (2, 8), (13, 4), (0, 0)], paths length:[72, 61, 54, 33], min_sum:220, min_max:72
+round27:start_pos:[(16, 13), (8, 18), (10, 5), (18, 8)], paths length:[56, 59, 52, 47], min_sum:214, min_max:59
+round28:start_pos:[(17, 0), (3, 20), (13, 18), (8, 2)], paths length:[60, 40, 56, 55], min_sum:211, min_max:60
+round29:start_pos:[(1, 12), (0, 9), (10, 13), (8, 11)], paths length:[34, 72, 36, 72], min_sum:214, min_max:72
+round30:start_pos:[(14, 1), (20, 14), (18, 0), (6, 15)], paths length:[42, 58, 29, 61], min_sum:190, min_max:61
+round31:start_pos:[(8, 10), (5, 14), (14, 4), (14, 2)], paths length:[61, 50, 45, 51], min_sum:207, min_max:61
+round32:start_pos:[(14, 20), (4, 10), (20, 4), (0, 7)], paths length:[45, 63, 55, 58], min_sum:221, min_max:63
+total time:952.982s, expanding nodes:0, successful time:33, avg_max_paths_len:65.33333333333333, per_exe_time:28.878248815151515

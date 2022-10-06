@@ -1,8 +1,7 @@
 """
 2022.9.19
-add new visualize function
-update initialize function
 add random start
+revise bug of multiple test time(doesn't run correctly)
 """
 import numpy as np
 import time
@@ -68,6 +67,7 @@ class WatchmanRouteProblem:
         self.f_weight, self.f_option = params.get("f_weight"), params.get("f_option")
         self.DF_factor = params.get("DF_factor")
         self.IW, self.WP = params.get("IW"), params.get("WP")
+        self.heuristic = params.get("heuristic")
         self.obstacles = 0
 
     def run(self, test_times):
@@ -87,9 +87,10 @@ class WatchmanRouteProblem:
             self.visualize(cur_state.path)
             paths_len.append(len(cur_state.path)-1)
             assert self.check_finish(cur_state.path), "路径有误！"
+            self.start = np.random.choice(list(self.empty_cells), 1, replace=False)[0]
             seen = self.LOS[self.start]
             path = [self.start]
-            self.start = np.random.choice(list(self.empty_cells), 1, replace=False)[0]
+            self.pq = PriorityQueue()
         print(f"map_size:{(self.h, self.w)}, obstacles:{self.obstacles}")
         print("running time:{:.3f} s, expanding nodes:{}, avg_path_len:{}".
               format((time.perf_counter() - start), self.nodes, np.mean(paths_len)))
@@ -123,10 +124,15 @@ class WatchmanRouteProblem:
             cur_seen = temp_state.seen
             for cell in path:
                 cur_seen = cur_seen | self.LOS[cell]
-            h_value = self.calc_MST_h(cur_seen, cur_path)
-            # h_value = self.calc_TSP_h(cur_seen, cur_path)
-            # h_value = 0
-            # h_value = self.calc_agg_h(cur_seen, cur_path)
+            if self.heuristic == "MST":
+                h_value = self.calc_MST_h(cur_seen, cur_path)
+            elif self.heuristic == "TSP":
+                h_value = self.calc_TSP_h(cur_seen, cur_path)
+            elif self.heuristic == "agg_h":
+                h_value = self.calc_agg_h(cur_seen, cur_path)
+            else:
+                h_value = 0
+
             # print("h_value:", h_value)
             A_star_v = self.calc_A_stat_v(len(cur_path), h_value, w=self.f_weight, option=self.f_option)
             self.pq.push_(State(cur_path, cur_seen, A_star_v))
@@ -554,9 +560,12 @@ def main():
     files = os.listdir(path)
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",
-              "DF_factor": 2, "IW": True, "WP": True}
+              "DF_factor": 2, "IW": True, "WP": True,
+              "heuristic": "MST"}
     for file in files:
         print(file)
+        if file != "0_lak101d.map":
+            continue
         start, map = read_map(file)
         test_times = 1
         sol = WatchmanRouteProblem(map, start, **params)

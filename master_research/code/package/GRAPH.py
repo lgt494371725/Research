@@ -69,12 +69,13 @@ def depth_first_search(map, can_reach, start):
     :param start:
     """
     h, w = len(map), len(map[0])
-    all_reach = [start]
+    has_reach = {}
     stack = [start]
     while stack:
         x, y = stack.pop(0)
         for new_x, new_y in [(x-1, y), (x+1, y), (x, y-1), (x, y+1)]:
-            if h > new_x >= 0 == map[x][y] and 0 <= new_y < w and (new_x, new_y) not in all_reach and (new_x, new_y) in can_reach:
+            if h > new_x >= 0 == map[x][y] and 0 <= new_y < w and not has_reach.get((new_x, new_y), 0) \
+                    and can_reach.get((new_x, new_y)):
                 stack.append((new_x, new_y))
-                all_reach.append((new_x, new_y))
-    return all_reach
+                has_reach[(new_x, new_y)] = 1
+    return has_reach

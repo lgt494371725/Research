@@ -1,7 +1,7 @@
 """
-version 2.5
+version 2.6
 修复平衡聚类的失败问题
-
+改良depth_first_search,减少deepcopy使用
 """
 from package import *
 from WRP_solver import WatchmanRouteProblem
@@ -35,7 +35,7 @@ class State:
 
     def calc_A_star_v(self):
         paths_len = [len(i)-1 for i in self.get_paths()]
-        self.A_star_v = np.mean(paths_len) + max(paths_len)
+        self.A_star_v = np.var(paths_len) + max(paths_len)
 
     def get_class(self, no_obstacles=False):
         """
@@ -109,6 +109,7 @@ class MWRP:
         self.pq_l2 = PriorityQueue()
 
     def run(self, test_times):
+        np.random.seed(42)
         start = time.perf_counter()
         if self.params['write_to_file']:
             f = open(f"../results/{self.n_agent}_agent_test_results.txt", "w+")
@@ -123,19 +124,19 @@ class MWRP:
                 # initial_time = time.perf_counter() - start
                 # print("initialization complete! time:{} s,".format(initial_time))
                 class_ = self.clustering()
-                # print(self.start)
-                self.visualize([], class_=class_)
+                # self.visualize([], class_=class_)
                 self.watchmen_init(class_)
                 for w in self.watchmen:
-                    w.path = self.solve_WRP(w)  #
+                    w.path = self.solve_WRP(w)
                 cur_state = State(self.watchmen, h=self.h, w=self.w)
-                self.visualize(cur_state.get_paths(), class_=cur_state.get_class(no_obstacles=True))
+                if self.params['visualize']:
+                    self.visualize(cur_state.get_paths(), class_=cur_state.get_class(no_obstacles=True))
                 best_state = cur_state
 
                 # improve stage
                 max_iter = 300
                 early_stop = 0
-                tolerant = 5
+                tolerant = 10
                 for loop in range(max_iter):  # loop until result converges
                     self.next_step(cur_state)
                     if self.pq_l2.is_empty():
@@ -150,7 +151,8 @@ class MWRP:
                             break
                     # self.visualize(cur_state.get_paths(), class_=cur_state.get_class(no_obstacles=True))
                 # assert self.check_finish(best_state.get_paths()), "wrong answer！"
-                self.visualize(best_state.get_paths(), class_=best_state.get_class(no_obstacles=True))
+                if self.params['visualize']:
+                    self.visualize(best_state.get_paths(), class_=best_state.get_class(no_obstacles=True))
                 # log
                 paths = best_state.get_paths()
                 paths_length = [*map(len, paths)]
@@ -188,7 +190,7 @@ class MWRP:
         real_cell_idx = sorted(list(self.empty_cells))  # after removing obstacles, the idx have changed
         for cur_class in range(n_class):
             assert isinstance(class_, np.ndarray)
-            class_idx = np.where(class_ == cur_class)[0]  # 外面包了一层元组类型,需要去掉
+            class_idx = np.where(class_ == cur_class)[0]   # 外面包了一层元组类型,需要去掉
             temp_watchman = self.watchmen[cur_class]
             temp_empty_cells = [real_cell_idx[idx] for idx in class_idx]  # need convert to set type later
             # start point
@@ -253,7 +255,7 @@ class MWRP:
         # result = KMeans(self.n_agent).fit_predict(matrix)
         n_start_pos = [self.encode(pos[0], pos[1]) for pos in self.start]
         result = MyKmeans(self.n_agent, non_zero_idx, self.APSP_d, self.edge_list, n_start_pos).fit_predict(matrix)
-        print("clustering result:", Counter(result))
+        print(f"start pos: {self.start} \nclustering result:{Counter(result)}", )
         return np.array(result)
 
     def check_finish(self, paths):
@@ -277,9 +279,9 @@ class MWRP:
         tolerance_size = 3
         clustering = cur_state.get_class()
         # 获取所有cell都属于哪个watchman
-        bar = tqdm(self.edge_list.items())
-        for cell, candidate in bar:  # plan to assign cell from cls_1 to cls_2
-            bar.set_description("edge_list check processing")
+        # bar = tqdm(self.edge_list.items())
+        for cell, candidate in self.edge_list.items():  # plan to assign cell from cls_1 to cls_2
+            # bar.set_description("edge_list check processing")
             cls_1 = clustering[cell]
             watchman_1 = cur_state.get_watchman(cls_1)
             path_len_cls_1 = watchman_1.get_path_len()
@@ -315,11 +317,12 @@ class MWRP:
                                           path_cls_1[cell_idx_in_path[1] + 1:]
                 else:  # too many times, give up assigning
                     continue
+
                 if len(need_to_assigns) > 1:
                     # 为succ寻找是否存在新的前接节点, 如果存在，只需要去掉当前点即可，后续路径保留
                     succ = need_to_assigns[1]
                     for c in new_path_cls_1:
-                        if self.get_APSP(succ, c, distance=True) <= 1:  # 找到后继点
+                        if self.get_APSP(succ, c, distance=True) <= 1:  # find successor
                             # self.show_real_pos([succ, c])
                             need_to_assigns = [need_to_assigns[0]]
                             break
@@ -328,7 +331,7 @@ class MWRP:
                 need_to_assigns |= path_to_closest_idx
                 # except cells on the path, there may be some outliers come out
                 left_cells = cur_state.get_watchman(cls_1).empty_cells - need_to_assigns
-                left_cells = [self.decode(i) for i in left_cells]
+                left_cells = {self.decode(i): 1 for i in left_cells}
                 new_can_reach = depth_first_search(self.map, left_cells, self.decode(new_path_cls_1[0]))
                 new_can_reach = set([self.encode(x, y) for x, y in new_can_reach])
                 outliers = cur_state.get_watchman(cls_1).empty_cells - new_can_reach
@@ -337,12 +340,14 @@ class MWRP:
                 # self.show_real_pos(need_to_assigns)
 
                 # adjust new watchmen empty cell and edge_list
-                new_watchman_1 = deepcopy(watchman_1)
-                new_watchman_1.empty_cells -= need_to_assigns
+                new_watchman_1 = Watchman(watchman_1.No)
+                new_watchman_1.start = watchman_1.start
+                new_watchman_1.empty_cells = watchman_1.empty_cells - need_to_assigns
                 new_watchman_1.edge_list = self.calc_new_edge_list(new_watchman_1.empty_cells)
 
-                new_watchman_2 = deepcopy(watchman_2)
-                new_watchman_2.empty_cells |= need_to_assigns
+                new_watchman_2 = Watchman(watchman_2.No)
+                new_watchman_2.start = watchman_2.start
+                new_watchman_2.empty_cells = watchman_2.empty_cells | need_to_assigns
                 new_watchman_2.edge_list = self.calc_new_edge_list(new_watchman_2.empty_cells)
                 # clustering[list(new_watchman_2.empty_cells)] = new_watchman_2.get_number()
 
@@ -354,6 +359,7 @@ class MWRP:
                 new_state.update_watchman(new_watchman_1)
                 new_state.update_watchman(new_watchman_2)
                 self.pq_l2.push_(new_state)
+                self.nodes += 1
         return None
 
     def calc_new_edge_list(self, empty_cells):
@@ -572,19 +578,19 @@ def main():
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WR": True,
-              "n_agent": 5, "heuristic": "MST", "write_to_file": True,
-              "silent": True}  # TSP,MST,agg_h, None
+              "n_agent": 4, "heuristic": "MST", "write_to_file": True,
+              "silent": True, "visualize": False}  # TSP,MST,agg_h, None
     start = None  # give the pos responding to n_agent
-    # start = [(8, 5), (1, 1)]  agent2
-    # start = [(10, 1), (0, 0), (10, 10)]  # recently for test, agent 3
-    test_times = 1
+    # start = [(10, 6), (12, 19)]  # 等会测试那个0lak的地图用
+    # start = [(10, 0), (0, 7), (6, 9)]
+    test_times = 50
     # map = np.array([[1, 0, 0, 0],
     #                 [1, 0, 1, 1],
     #                 [0, 0, 0, 0],
     #                 [0, 0, 0, 0]])
     # start = [(0, 1), (0, 2)]
     for file in files:
-        if file != "2_maze_21d.txt":
+        if file != "4_11d.txt":
             continue
         map = read_map(file)
         sol = MWRP(map, start, **params)

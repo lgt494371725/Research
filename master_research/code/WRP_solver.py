@@ -62,16 +62,15 @@ class WatchmanRouteProblem:
                                            BJP_DF=self.DF_factor)
         for new_pos in near_watchers:
             new_x, new_y = self.decode(new_pos)
-            path = deepcopy(self.get_APSP(cur_state.cur_pos, new_pos, distance=False))  # the path will go through
+            path = self.get_APSP(cur_state.cur_pos, new_pos, distance=False).copy()  # the path will go through
             # print(f"cur_pos:{a} to new_pos:{b}: {path}")
             assert 0 <= new_x < self.h and 0 <= new_y < self.w and self.map[new_x][new_y] != 1
-            temp_state = deepcopy(cur_state)
-            cur_path = temp_state.path
+            cur_path = cur_state.path.copy()
             if path[-1] != new_pos:
                 path = path[::-1]
             path.remove(cur_state.cur_pos)
             cur_path.extend(path)
-            cur_seen = temp_state.seen
+            cur_seen = cur_state.seen.copy()
             for cell in path:
                 cur_seen = self.add_seen(cur_seen, self.LOS[cell])
             if self.heuristic == "MST":
@@ -235,7 +234,7 @@ class WatchmanRouteProblem:
             return distance_matrix, near_watchers
 
     def floyd_APSP(self, distance_matrix):
-        m = deepcopy(distance_matrix)
+        m = distance_matrix.copy()
         length = len(m)
         for k in range(length):
             for v in range(length):
@@ -253,7 +252,10 @@ class WatchmanRouteProblem:
         """
         compact cells in need_to_compact
         """
-        edge_list = deepcopy(self.edge_list)
+        # edge_list = deepcopy(self.edge_list)
+        edge_list = {}
+        for key, value in self.edge_list.items():
+            edge_list[key] = value.copy()
         for code in need_to_compact:
             temp = edge_list.pop(code)  # delete cell from edge_list
             for edge_num in temp:

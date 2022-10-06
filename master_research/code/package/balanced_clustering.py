@@ -175,7 +175,7 @@ class MyKmeans:
         value=-1 if |Cr|<=|Cs|
 
         WM(C)=||C|-balance_size|
-        weight value of move=WM|Cr|+WM|Cs|-WM|Cr-pi|-WM|Cs+pi|
+        weight value of move=WM|Cr|+WM|Cs|-WM|Cr-pi|-WM|Cs+pi|  (pi,当前点)
         ========
         执行move的条件：balanced value>0 or (balanced value=0 and weight value of move > 0)
         do move operation until no more remain

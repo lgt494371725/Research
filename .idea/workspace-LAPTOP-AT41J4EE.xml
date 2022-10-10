@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="082a3f19-b464-45fe-8685-33e6620bda15" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/31216835_LIUGuanting.pptx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/31216835_LIUGuanting_short.pptx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/code/MAWRP_v2.py" beforeDir="false" afterPath="$PROJECT_DIR$/master_research/code/MAWRP_v2.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/code/WRP_solver.py" beforeDir="false" afterPath="$PROJECT_DIR$/master_research/code/WRP_solver.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/code/package/balanced_clustering.py" beforeDir="false" afterPath="$PROJECT_DIR$/master_research/code/package/balanced_clustering.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/code/read_result.py" beforeDir="false" afterPath="$PROJECT_DIR$/master_research/code/read_result.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/code/result.cprofile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/code/suboptimal_v1.py" beforeDir="false" afterPath="$PROJECT_DIR$/master_research/code/suboptimal_v1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/maps/result.out" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/results/1_agent_test_results.txt" beforeDir="false" afterPath="$PROJECT_DIR$/master_research/results/1_agent_test_results.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/results/2_agent_test_results.txt" beforeDir="false" afterPath="$PROJECT_DIR$/master_research/results/2_agent_test_results.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/results/3_agent_test_results.txt" beforeDir="false" afterPath="$PROJECT_DIR$/master_research/results/3_agent_test_results.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/results/4_agent_test_results.txt" beforeDir="false" afterPath="$PROJECT_DIR$/master_research/results/4_agent_test_results.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/results/5_agent_test_results.txt" beforeDir="false" afterPath="$PROJECT_DIR$/master_research/results/5_agent_test_results.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/master_research/test_result.xlsx" beforeDir="false" afterPath="$PROJECT_DIR$/master_research/test_result.xlsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/topic6/CEC2014" beforeDir="false" afterPath="$PROJECT_DIR$/topic6/CEC2014" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/topic6/CEC2014/Definitions of  CEC2014 benchmark suite Part A.pdf" beforeDir="false" afterPath="$PROJECT_DIR$/topic6/CEC2014/Definitions of  CEC2014 benchmark suite Part A.pdf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/topic6/CEC2014/cec14-c-code.zip" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="FlaskConsoleOptions" custom-start-script="import sys&#10;sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;from flask.cli import ScriptInfo&#10;locals().update(ScriptInfo(create_app=None).load_app().make_shell_context())&#10;print(&quot;Python %s on %s\nApp: %s [%s]\nInstance: %s&quot; % (sys.version, sys.platform, app.import_name, app.env, app.instance_path))">
+    <envs>
+      <env key="FLASK_APP" value="app" />
+    </envs>
+    <option name="myCustomStartScript" value="import sys&#10;sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;from flask.cli import ScriptInfo&#10;locals().update(ScriptInfo(create_app=None).load_app().make_shell_context())&#10;print(&quot;Python %s on %s\nApp: %s [%s]\nInstance: %s&quot; % (sys.version, sys.platform, app.import_name, app.env, app.instance_path))" />
+    <option name="myEnvs">
+      <map>
+        <entry key="FLASK_APP" value="app" />
+      </map>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="ProjectId" id="28jeMlealM1wf4f4CbFbdHV8aUp" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="WebServerToolWindowFactoryState" value="false" />
+  </component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\18959\OneDrive - The University of Tokyo\research\研究内容\code" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\18959\OneDrive - The University of Tokyo\research\master_research\code" />
+      <recent name="C:\Users\18959\OneDrive - The University of Tokyo\research\研究内容\code" />
+      <recent name="C:\Users\18959\OneDrive - The University of Tokyo\research\研究内容\package" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Python.MAWRP_v2">
+    <configuration name="MAWRP_v1 (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="research" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/master_research/code" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/master_research/code/MAWRP_v1.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="MAWRP_v2" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="research" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/master_research/code" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/master_research/code/MAWRP_v2.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="read_result (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="research" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/master_research/code" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/master_research/code/read_result.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="read_result" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="research" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/master_research/code/package" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="C:\Users\18959\OneDrive - The University of Tokyo\research\master_research\code\read_result.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="suboptimal_v1" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="research" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/master_research/code" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/master_research/code/suboptimal_v1.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.MAWRP_v2" />
+        <item itemvalue="Python.read_result (1)" />
+        <item itemvalue="Python.suboptimal_v1" />
+        <item itemvalue="Python.read_result" />
+        <item itemvalue="Python.MAWRP_v1 (1)" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="082a3f19-b464-45fe-8685-33e6620bda15" name="Changes" comment="" />
+      <created>1651734377075</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1651734377075</updated>
+      <workItem from="1651734388428" duration="854000" />
+      <workItem from="1651800494397" duration="4017000" />
+      <workItem from="1652059456703" duration="597000" />
+      <workItem from="1652067377701" duration="3790000" />
+      <workItem from="1652707714761" duration="3254000" />
+      <workItem from="1652744610112" duration="631000" />
+      <workItem from="1653876142004" duration="2118000" />
+      <workItem from="1653959894606" duration="716000" />
+      <workItem from="1654082042240" duration="54000" />
+      <workItem from="1654149530447" duration="5593000" />
+      <workItem from="1654498168049" duration="2263000" />
+      <workItem from="1654571668685" duration="7522000" />
+      <workItem from="1654583228284" duration="1795000" />
+      <workItem from="1654660593001" duration="8000" />
+      <workItem from="1654907346808" duration="1967000" />
+      <workItem from="1655517153296" duration="1269000" />
+      <workItem from="1655706341010" duration="7961000" />
+      <workItem from="1655948617033" duration="6990000" />
+      <workItem from="1656314995659" duration="68000" />
+      <workItem from="1656315183567" duration="628000" />
+      <workItem from="1656487387339" duration="54000" />
+      <workItem from="1656914807270" duration="5112000" />
+      <workItem from="1656937136772" duration="2010000" />
+      <workItem from="1657447818920" duration="11241000" />
+      <workItem from="1657582166102" duration="602000" />
+      <workItem from="1657778776449" duration="6307000" />
+      <workItem from="1657806383938" duration="1951000" />
+      <workItem from="1657863979598" duration="13757000" />
+      <workItem from="1657938731732" duration="7473000" />
+      <workItem from="1657987448295" duration="554000" />
+      <workItem from="1658017740472" duration="1982000" />
+      <workItem from="1658189605260" duration="2295000" />
+      <workItem from="1658200263295" duration="4200000" />
+      <workItem from="1658205628358" duration="1318000" />
+      <workItem from="1658556227432" duration="6058000" />
+      <workItem from="1658708025187" duration="619000" />
+      <workItem from="1658728196127" duration="14485000" />
+      <workItem from="1658758305890" duration="5833000" />
+      <workItem from="1658768918016" duration="2681000" />
+      <workItem from="1658797016853" duration="8629000" />
+      <workItem from="1659011722551" duration="8000" />
+      <workItem from="1659266451494" duration="4678000" />
+      <workItem from="1659319621053" duration="8159000" />
+      <workItem from="1659336798034" duration="3128000" />
+      <workItem from="1659405131770" duration="2397000" />
+      <workItem from="1659516165511" duration="1739000" />
+      <workItem from="1659883359921" duration="2834000" />
+      <workItem from="1659918969305" duration="6685000" />
+      <workItem from="1659931988544" duration="52000" />
+      <workItem from="1659942392237" duration="17553000" />
+      <workItem from="1660008258656" duration="864000" />
+      <workItem from="1660016938378" duration="1959000" />
+      <workItem from="1660543805282" duration="5090000" />
+      <workItem from="1660569936336" duration="1393000" />
+      <workItem from="1660610126496" duration="1773000" />
+      <workItem from="1660621854460" duration="1941000" />
+      <workItem from="1660909285645" duration="2941000" />
+      <workItem from="1660912270541" duration="1410000" />
+      <workItem from="1660915033028" duration="1806000" />
+      <workItem from="1660955798334" duration="3338000" />
+      <workItem from="1661053287390" duration="48000" />
+      <workItem from="1661132238501" duration="12261000" />
+      <workItem from="1661156619254" duration="234000" />
+      <workItem from="1661167220379" duration="536000" />
+      <workItem from="1661216781642" duration="3166000" />
+      <workItem from="1661227059708" duration="963000" />
+      <workItem from="1661734489108" duration="15458000" />
+      <workItem from="1661775355911" duration="4020000" />
+      <workItem from="1661819794994" duration="4711000" />
+      <workItem from="1661831668415" duration="1737000" />
+      <workItem from="1662380474569" duration="325000" />
+      <workItem from="1662460749096" duration="6953000" />
+      <workItem from="1662508818754" duration="9862000" />
+      <workItem from="1663025804010" duration="5235000" />
+      <workItem from="1663033559450" duration="18000" />
+      <workItem from="1663040840619" duration="2022000" />
+      <workItem from="1663465246361" duration="8054000" />
+      <workItem from="1663553570063" duration="1686000" />
+      <workItem from="1663565061432" duration="13200000" />
+      <workItem from="1663601805308" duration="810000" />
+      <workItem from="1663633497803" duration="8244000" />
+      <workItem from="1663645899440" duration="830000" />
+      <workItem from="1663984957971" duration="3364000" />
+      <workItem from="1664154155763" duration="15388000" />
+      <workItem from="1664178919460" duration="1660000" />
+      <workItem from="1664201775012" duration="813000" />
+      <workItem from="1664236251478" duration="5451000" />
+      <workItem from="1664246014348" duration="6390000" />
+      <workItem from="1664770290792" duration="10837000" />
+      <workItem from="1665027348947" duration="19000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.History.Properties">
+    <option name="COLUMN_ID_ORDER">
+      <list>
+        <option value="Default.Root" />
+        <option value="Default.Author" />
+        <option value="Default.Date" />
+        <option value="Default.Subject" />
+        <option value="Space.CommitStatus" />
+      </list>
+    </option>
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="oldMeFiltersMigrated" value="true" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/master_research/code/MAWRP_v1.py</url>
+          <line>112</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/master_research/code/MAWRP_v2.py</url>
+          <line>597</line>
+          <option name="timeStamp" value="3" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/research$suboptimal_v1.coverage" NAME="suboptimal_v1 Coverage Results" MODIFIED="1664251634617" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/master_research/code" />
+    <SUITE FILE_PATH="coverage/research$read_result.coverage" NAME="read_result Coverage Results" MODIFIED="1663985680297" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/master_research/code/package" />
+    <SUITE FILE_PATH="coverage/research$WRP_v4_pypy.coverage" NAME="WRP_v4_pypy Coverage Results" MODIFIED="1656315013570" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/master_research/code" />
+    <SUITE FILE_PATH="coverage/research$balanced_clustering.coverage" NAME="balanced_clustering Coverage Results" MODIFIED="1659969006789" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/master_research/code/package" />
+    <SUITE FILE_PATH="coverage/research$WRP_solver.coverage" NAME="WRP_solver Coverage Results" MODIFIED="1661217501265" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/master_research/code" />
+    <SUITE FILE_PATH="coverage/research$WRP_V5.coverage" NAME="WRP_V5 Coverage Results" MODIFIED="1661217729657" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/master_research/code" />
+    <SUITE FILE_PATH="coverage/research$__init__.coverage" NAME="__init__ Coverage Results" MODIFIED="1654152099945" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/研究内容/code/package" />
+    <SUITE FILE_PATH="coverage/research$MAWRP_v1__1_.coverage" NAME="MAWRP_v1 (1) Coverage Results" MODIFIED="1663025845026" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/master_research/code" />
+    <SUITE FILE_PATH="coverage/research$WRP_v4.coverage" NAME="WRP_v4 Coverage Results" MODIFIED="1656315190543" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/master_research/code" />
+    <SUITE FILE_PATH="coverage/research$MAWRP_v2.coverage" NAME="MAWRP_v2 Coverage Results" MODIFIED="1664810860700" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/master_research/code" />
+    <SUITE FILE_PATH="coverage/research$MAWRP_v1.coverage" NAME="MAWRP_v1 Coverage Results" MODIFIED="1654573838136" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/研究内容/code" />
+    <SUITE FILE_PATH="coverage/research$read_result__1_.coverage" NAME="read_result (1) Coverage Results" MODIFIED="1664252378660" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/master_research/code" />
+  </component>
+</project>

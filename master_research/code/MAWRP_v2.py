@@ -1,7 +1,9 @@
 """
-version 2.6
-修复平衡聚类的失败问题
-改良depth_first_search,减少deepcopy使用
+version 2.7
+State.calc_A_star_v 变更为静态方法
+State.get_paths return type from list to dict
+add new balanced judging condition->complete
+final date: 2022.10.10
 """
 from package import *
 from WRP_solver import WatchmanRouteProblem
@@ -12,16 +14,18 @@ class State:
         self.h = h
         self.w = w
         self.watchmen = {w.get_number(): w for w in watchmen}
-        self.A_star_v = 0  # higher level
-        self.calc_A_star_v()
+        self.A_star_v = self.calc_A_star_v(self.get_paths(only_length=True))  # higher level
         self.clustering = None
 
     def is_all_finish(self):
         return False
         # return all([w.is_finish() for w in self.watchmen])
 
-    def get_paths(self):
-        return [w.path for w in self.watchmen.values()]
+    def get_paths(self, only_length=False):
+        if only_length:
+            return {w.get_number(): len(w.path)-1 for w in self.watchmen.values()}
+        else:
+            return {w.get_number(): w.path for w in self.watchmen.values()}
 
     def get_watchman(self, number):
         assert number in self.watchmen.keys(), "watchman not found".center(30, '=')
@@ -31,11 +35,13 @@ class State:
         number = new_watchman.get_number()
         assert number in self.watchmen.keys(), "watchman not found".center(30, '=')
         self.watchmen[number] = new_watchman
-        self.calc_A_star_v()
+        self.A_star_v = self.calc_A_star_v(self.get_paths(only_length=True))
 
-    def calc_A_star_v(self):
-        paths_len = [len(i)-1 for i in self.get_paths()]
-        self.A_star_v = np.var(paths_len) + max(paths_len)
+    @staticmethod
+    def calc_A_star_v(paths: dict):
+        paths = list(paths.values())
+        A_star_v = np.var(paths) + max(paths)
+        return A_star_v
 
     def get_class(self, no_obstacles=False):
         """
@@ -105,7 +111,7 @@ class MWRP:
         self.empty_cells = set()
         self.watchmen = [Watchman(i) for i in range(self.n_agent)]
         self.LOS, self.APSP, self.APSP_d = {}, {}, {}
-        self.edge_list, self.nodes = {}, 0
+        self.edge_list= {}
         self.pq_l2 = PriorityQueue()
 
     def run(self, test_times):
@@ -117,64 +123,64 @@ class MWRP:
         bar = tqdm(range(test_times))
         for i in bar:
             bar.set_description("test time processing")
-            try:
+            # try:
 
-                # initial stage
-                self.initialize()
-                # initial_time = time.perf_counter() - start
-                # print("initialization complete! time:{} s,".format(initial_time))
-                class_ = self.clustering()
-                # self.visualize([], class_=class_)
-                self.watchmen_init(class_)
-                for w in self.watchmen:
-                    w.path = self.solve_WRP(w)
-                cur_state = State(self.watchmen, h=self.h, w=self.w)
-                if self.params['visualize']:
-                    self.visualize(cur_state.get_paths(), class_=cur_state.get_class(no_obstacles=True))
-                best_state = cur_state
+            # initial stage
+            self.initialize()
+            # initial_time = time.perf_counter() - start
+            # print("initialization complete! time:{} s,".format(initial_time))
+            class_ = self.clustering()
+            # self.visualize([], class_=class_)
+            self.watchmen_init(class_)
+            for w in self.watchmen:
+                w.path = self.solve_WRP(w)
+            cur_state = State(self.watchmen, h=self.h, w=self.w)
+            if self.params['visualize']:
+                self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
+            best_state = cur_state
 
-                # improve stage
-                max_iter = 300
-                early_stop = 0
-                tolerant = 10
-                for loop in range(max_iter):  # loop until result converges
-                    self.next_step(cur_state)
-                    if self.pq_l2.is_empty():
+            # improve stage
+            max_iter = 300
+            early_stop = 0
+            tolerant = 10
+            for loop in range(max_iter):  # loop until result converges
+                self.next_step(cur_state)
+                if self.pq_l2.is_empty():
+                    break
+                cur_state = self.pq_l2.pop_()
+                if best_state.A_star_v >= cur_state.A_star_v:  # 停止条件需要接着优化
+                    best_state = cur_state
+                else:
+                    early_stop += 1
+                    if early_stop == tolerant:
+                        print("result has been stable, early stop!!")
                         break
-                    cur_state = self.pq_l2.pop_()
-                    if best_state.A_star_v >= cur_state.A_star_v:  # 停止条件需要接着优化
-                        best_state = cur_state
-                    else:
-                        early_stop += 1
-                        if early_stop == tolerant:
-                            print("result has been stable, early stop!!")
-                            break
-                    # self.visualize(cur_state.get_paths(), class_=cur_state.get_class(no_obstacles=True))
-                # assert self.check_finish(best_state.get_paths()), "wrong answer！"
-                if self.params['visualize']:
-                    self.visualize(best_state.get_paths(), class_=best_state.get_class(no_obstacles=True))
-                # log
-                paths = best_state.get_paths()
-                paths_length = [*map(len, paths)]
-                max_paths_len.append(max(paths_length) - 1)
-                if self.params['write_to_file']:
-                    f.write(f"round{i}:start_pos:{self.start}, paths length:{paths_length}, min_sum:{sum(paths_length)}"
-                            f", min_max:{max(paths_length)}\n")
-                self.restart()
+                # self.visualize(cur_state.get_paths(), class_=cur_state.get_class(no_obstacles=True))
+            # assert self.check_finish(best_state.get_paths()), "wrong answer！"
+            if self.params['visualize']:
+                self.visualize(list(best_state.get_paths().values()),
+                               class_=best_state.get_class(no_obstacles=True))
+            # log
+            paths_length = list(best_state.get_paths(only_length=True).values())
+            max_paths_len.append(max(paths_length) - 1)
+            if self.params['write_to_file']:
+                f.write(f"round{i}:start_pos:{self.start}, paths length:{paths_length}, min_sum:{sum(paths_length)}"
+                        f", min_max:{max(paths_length)}\n")
+            self.restart()
 
-            except Exception as e:
-                print(f"----------main program wrong:{e}")
-                self.restart()
-                continue
+            # except Exception as e:
+            #     print(f"----------main program wrong:{e}")
+            #     self.restart()
+            #     continue
         end_time = time.perf_counter()
         print("total time:{:.3f}s, expanding nodes:{}"
               .format(end_time - start,
-                      self.nodes))
+                      self.nodes/ test_times))
         if self.params['write_to_file']:
             f.write("total time:{:.3f}s, expanding nodes:{},"
                     " successful time:{}, avg_max_paths_len:{}, per_exe_time:{}\n"
                     .format(end_time - start,
-                            self.nodes,
+                            self.nodes/ test_times,
                             len(max_paths_len),
                             np.mean(max_paths_len),
                             (end_time - start) / len(max_paths_len)))
@@ -326,6 +332,20 @@ class MWRP:
                             # self.show_real_pos([succ, c])
                             need_to_assigns = [need_to_assigns[0]]
                             break
+                # ---------condition2---------------
+                # assess the improvement of A_star_v, if no improvement, skip
+                epsilon = 1
+                pre_A_star_v = cur_state.A_star_v
+                pre_paths = cur_state.get_paths(only_length=True)
+                post_paths = pre_paths.copy()
+                post_paths[cls_1] -= len(need_to_assigns)
+                post_paths[cls_2] += len(need_to_assigns)
+                post_A_star_v = State.calc_A_star_v(post_paths)
+                # if post_A_star_v >= pre_A_star_v:
+                #     continue
+                if post_A_star_v / pre_A_star_v >= epsilon:
+                    continue
+
                 # path_to_closest_idx also need to assign
                 need_to_assigns = set(need_to_assigns)
                 need_to_assigns |= path_to_closest_idx
@@ -576,21 +596,21 @@ def main():
     path = r"..\maps"
     files = os.listdir(path)
     os.chdir(path)
-    params = {"f_weight": 1, "f_option": "WA",
+    params = {"f_weight": 10, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WR": True,
-              "n_agent": 4, "heuristic": "MST", "write_to_file": True,
-              "silent": True, "visualize": False}  # TSP,MST,agg_h, None
+              "n_agent": 3, "heuristic": "agg_h", "write_to_file": True,
+              "silent": True, "visualize": True}  # TSP,MST,agg_h, None
     start = None  # give the pos responding to n_agent
     # start = [(10, 6), (12, 19)]  # 等会测试那个0lak的地图用
     # start = [(10, 0), (0, 7), (6, 9)]
-    test_times = 50
+    test_times = 1
     # map = np.array([[1, 0, 0, 0],
     #                 [1, 0, 1, 1],
     #                 [0, 0, 0, 0],
     #                 [0, 0, 0, 0]])
     # start = [(0, 1), (0, 2)]
     for file in files:
-        if file != "4_11d.txt":
+        if file != "0_lak101d.map":
             continue
         map = read_map(file)
         sol = MWRP(map, start, **params)

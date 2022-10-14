@@ -1,9 +1,10 @@
 """
-version 2.7
-State.calc_A_star_v 变更为静态方法
-State.get_paths return type from list to dict
-add new balanced judging condition->complete
-final date: 2022.10.10
+version 3.1
+function visualize adapted to multi-class
+State.get_class adapted to multi-class
+visualize func improved can adapt to multi-class and show responding color
+class:state name changed: A_stat_v->f_v, add get_value() method
+final date: 2022.10.14
 """
 from package import *
 from WRP_solver import WatchmanRouteProblem
@@ -14,7 +15,7 @@ class State:
         self.h = h
         self.w = w
         self.watchmen = {w.get_number(): w for w in watchmen}
-        self.A_star_v = self.calc_A_star_v(self.get_paths(only_length=True))  # higher level
+        self.f_v = self.calc_f_v(self.get_paths(only_length=True))  # higher level
         self.clustering = None
 
     def is_all_finish(self):
@@ -35,24 +36,29 @@ class State:
         number = new_watchman.get_number()
         assert number in self.watchmen.keys(), "watchman not found".center(30, '=')
         self.watchmen[number] = new_watchman
-        self.A_star_v = self.calc_A_star_v(self.get_paths(only_length=True))
+        self.f_v = self.calc_f_v(self.get_paths(only_length=True))
 
     @staticmethod
-    def calc_A_star_v(paths: dict):
+    def calc_f_v(paths: dict):
         paths = list(paths.values())
-        A_star_v = np.var(paths) + max(paths)
-        return A_star_v
+        f_v = round(np.var(paths)) + max(paths)
+        return f_v
 
     def get_class(self, no_obstacles=False):
         """
         :param no_obstacles:  if true, remove cells which are obstacles
         """
-        clustering = np.array([-1]*(self.h*self.w))
+        n_agent = len(self.watchmen)
+        clustering = np.zeros((self.h*self.w, n_agent))
         for num, w in self.watchmen.items():
-            clustering[list(w.empty_cells)] = num
+            clustering[list(w.empty_cells), num] = 1
         if no_obstacles:
-            clustering = clustering[clustering != -1]
+            non_zero_cell_idx = np.where(np.sum(clustering, axis=1) != 0)[0]
+            clustering = clustering[non_zero_cell_idx]
         return clustering
+
+    def get_value(self):
+        return self.f_v
 
 
 class Watchman:
@@ -130,7 +136,6 @@ class MWRP:
             # initial_time = time.perf_counter() - start
             # print("initialization complete! time:{} s,".format(initial_time))
             class_ = self.clustering()
-            # self.visualize([], class_=class_)
             self.watchmen_init(class_)
             for w in self.watchmen:
                 w.path = self.solve_WRP(w)
@@ -148,14 +153,14 @@ class MWRP:
                 if self.pq_l2.is_empty():
                     break
                 cur_state = self.pq_l2.pop_()
-                if best_state.A_star_v >= cur_state.A_star_v:  # 停止条件需要接着优化
+                if best_state.f_v >= cur_state.f_v:  # 停止条件需要接着优化
                     best_state = cur_state
                 else:
                     early_stop += 1
                     if early_stop == tolerant:
                         print("result has been stable, early stop!!")
                         break
-                # self.visualize(cur_state.get_paths(), class_=cur_state.get_class(no_obstacles=True))
+                # self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
             # assert self.check_finish(best_state.get_paths()), "wrong answer！"
             if self.params['visualize']:
                 self.visualize(list(best_state.get_paths().values()),
@@ -288,11 +293,13 @@ class MWRP:
         # bar = tqdm(self.edge_list.items())
         for cell, candidate in self.edge_list.items():  # plan to assign cell from cls_1 to cls_2
             # bar.set_description("edge_list check processing")
-            cls_1 = clustering[cell]
+            cls_1 = np.where(clustering[cell] != 0)[0]  # possibly multi-class
+            cls_1 = np.random.choice(cls_1, 1)[0]  # random choose one
             watchman_1 = cur_state.get_watchman(cls_1)
             path_len_cls_1 = watchman_1.get_path_len()
             for nxt_cell in candidate:
-                cls_2 = clustering[nxt_cell]
+                cls_2 = np.where(clustering[nxt_cell] != 0)[0]
+                cls_2 = np.random.choice(cls_2, 1)[0]
                 watchman_2 = cur_state.get_watchman(cls_2)
                 path_len_cls_2 = watchman_2.get_path_len()
                 # cls_1的路径长度必须超过cls_2，才考虑分配
@@ -333,17 +340,17 @@ class MWRP:
                             need_to_assigns = [need_to_assigns[0]]
                             break
                 # ---------condition2---------------
-                # assess the improvement of A_star_v, if no improvement, skip
+                # assess the improvement of f_v, if no improvement, skip
                 epsilon = 1
-                pre_A_star_v = cur_state.A_star_v
+                pre_f_v = cur_state.f_v
                 pre_paths = cur_state.get_paths(only_length=True)
                 post_paths = pre_paths.copy()
                 post_paths[cls_1] -= len(need_to_assigns)
                 post_paths[cls_2] += len(need_to_assigns)
-                post_A_star_v = State.calc_A_star_v(post_paths)
-                # if post_A_star_v >= pre_A_star_v:
+                post_f_v = State.calc_f_v(post_paths)
+                # if post_f_v >= pre_fr_v:
                 #     continue
-                if post_A_star_v / pre_A_star_v >= epsilon:
+                if post_f_v / pre_f_v >= epsilon:
                     continue
 
                 # path_to_closest_idx also need to assign
@@ -378,7 +385,9 @@ class MWRP:
                 new_state = deepcopy(cur_state)
                 new_state.update_watchman(new_watchman_1)
                 new_state.update_watchman(new_watchman_2)
+                print(f"cell:{cell}", f"nxt_cell:{nxt_cell}")
                 self.pq_l2.push_(new_state)
+                # self.visualize(list(new_state.get_paths().values()), class_=new_state.get_class(no_obstacles=True))
                 self.nodes += 1
         return None
 
@@ -549,7 +558,19 @@ class MWRP:
             x, y = self.decode(i)
             axis_x.append(x)
             axis_y.append(y)
-        color_set = [plt.cm.Set1(i) for i in class_]
+        color_set = []
+        for row in class_:
+            # color_code = sum(np.where(row != 0)[0])
+            classes = np.where(row != 0)[0]
+            if len(classes) > 1:
+                rgb_color = []
+                for c in classes:
+                    rgb_color.append(list(plt.cm.Set1(c)))
+                color_set.append(np.mean(rgb_color, axis=0))
+            else:
+                color_code = classes[0]
+                color_set.append(plt.cm.Set1(color_code))  # Set1有取值范围[0,7]
+
         plt.scatter(axis_y, axis_x, c=color_set, s=100, alpha=0.4)  # attention! x and y are reversed!
 
         # plot path for every agent
@@ -566,7 +587,7 @@ class MWRP:
                 x_2, y_2 = self.decode(path[j + 1])
                 dx_ = x_2 - x_1
                 dy_ = y_2 - y_1
-                plt.arrow(y_1, x_1, dx=dy_, dy=dx_, width=0.01, ec=color, alpha=1,
+                plt.arrow(y_1, x_1, dx=dy_, dy=dx_, width=0.01, ec=color, alpha=0.8,
                           fc=color,
                           head_width=0.2,
                           length_includes_head=True)  # 坐标系位置和矩阵cell位置表示是相反的
@@ -596,21 +617,21 @@ def main():
     path = r"..\maps"
     files = os.listdir(path)
     os.chdir(path)
-    params = {"f_weight": 10, "f_option": "WA",
+    params = {"f_weight": 1, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WR": True,
-              "n_agent": 3, "heuristic": "agg_h", "write_to_file": True,
-              "silent": True, "visualize": True}  # TSP,MST,agg_h, None
+              "n_agent": 5, "heuristic": "agg_h", "write_to_file": False,
+              "silent": False, "visualize": True}  # TSP,MST,agg_h, None
     start = None  # give the pos responding to n_agent
     # start = [(10, 6), (12, 19)]  # 等会测试那个0lak的地图用
-    # start = [(10, 0), (0, 7), (6, 9)]
+    # start = [(6, 9), (6, 7), (6, 1)]
     test_times = 1
-    # map = np.array([[1, 0, 0, 0],
-    #                 [1, 0, 1, 1],
+    # map = np.array([[1, 1, 0, 0],
+    #                 [1, 1, 0, 1],
     #                 [0, 0, 0, 0],
-    #                 [0, 0, 0, 0]])
-    # start = [(0, 1), (0, 2)]
+    #                 [1, 1, 0, 1]])  # for the latest test
+    # start = [(2, 0), (0, 2)]
     for file in files:
-        if file != "0_lak101d.map":
+        if file != "4_11d.txt":
             continue
         map = read_map(file)
         sol = MWRP(map, start, **params)

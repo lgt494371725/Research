@@ -8,8 +8,9 @@ class PriorityQueue:
         self.min_pos = []
 
     def push_(self, state):
-        self.pq[state.A_star_v].append(state)
-        heappush(self.min_pos, state.A_star_v)
+        value = state.get_value()
+        self.pq[value].append(state)
+        heappush(self.min_pos, value)
 
     def pop_(self):
         assert not self.is_empty(), "队列已空"

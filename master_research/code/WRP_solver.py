@@ -8,6 +8,9 @@ class State:
         self.seen = seen
         self.A_star_v = A_star_v
 
+    def get_value(self):
+        return self.A_star_v
+
 
 class WatchmanRouteProblem:
     """
@@ -51,10 +54,11 @@ class WatchmanRouteProblem:
             cur_state = self.pq.pop_()
         if not self.silent:
             print(
-                "running time:{} s, expanding nodes:{}, start point:{}, path length: {}".format(time.perf_counter() - start,
-                                                                                                self.nodes,
-                                                                                                self.decode(self.start),
-                                                                                                len(cur_state.path)-1))
+                "running time:{} s, expanding nodes:{}, start point:{}, path length: {}".format(
+                    time.perf_counter() - start,
+                    self.nodes,
+                    self.decode(self.start),
+                    len(cur_state.path) - 1))
         return cur_state.path
 
     def next_step(self, cur_state):

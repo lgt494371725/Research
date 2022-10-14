@@ -1,5 +1,3 @@
-from sklearn.cluster import KMeans
-from scipy.spatial.distance import cdist
 import numpy as np
 import math
 from collections import Counter
@@ -95,6 +93,7 @@ class MyKmeans:
         :type data: np.ndarray
         every cluster will have a responding spanning tree and every node in C will have a predecessor
         distances: distances[p]表示p点与所属根节点r之间的总路径长度，当不属于任何簇时，为-1
+                   各簇根节点距离为0
         """
         self.n_sample = data.shape[0]
         self.features_count = data.shape[1]
@@ -122,7 +121,7 @@ class MyKmeans:
                             to_remove.append(c)
                             continue
                         pred = cluster.get_predecessor(c)
-                        temp_d = distances[pred] + 1
+                        temp_d = distances[pred] + 1  # the distance between current and root
                         if temp_d < min_d:
                             min_d = temp_d
                             min_idx = c

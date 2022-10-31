@@ -66,7 +66,7 @@ class WatchmanRouteProblem:
                                            BJP_DF=self.DF_factor)
         for new_pos in near_watchers:
             new_x, new_y = self.decode(new_pos)
-            path = self.get_APSP(cur_state.cur_pos, new_pos, distance=False).copy()  # the path will go through
+            path = self.APSP[cur_state.cur_pos, new_pos].copy() # the path will go through
             # print(f"cur_pos:{a} to new_pos:{b}: {path}")
             assert 0 <= new_x < self.h and 0 <= new_y < self.w and self.map[new_x][new_y] != 1
             cur_path = cur_state.path.copy()
@@ -120,10 +120,7 @@ class WatchmanRouteProblem:
         cells = self.LOS[p]
         min_h = float('inf')
         for cell in cells:
-            a, b = cur_location, cell
-            if a > b:
-                a, b = b, a
-            min_h = min(min_h, self.APSP_d.get((a, b), float('inf')))
+            min_h = min(min_h, self.APSP_d[cur_location, cell])
         return min_h
 
     def calc_MST_h(self, cur_seen, cur_path):
@@ -168,7 +165,7 @@ class WatchmanRouteProblem:
                 watcher = watcher | temp  # here watcher including pivot itself
                 for cell in temp:
                     cell_group[cell] = p
-                pivots_path[p] = self.get_APSP(agent_code, p, distance=False)
+                pivots_path[p] = self.APSP[agent_code, p]
         if WR:  # if one path include some other pivot's watcher, delete that pivot
             deleted = []
             for p1, p_path in pivots_path.items():
@@ -211,7 +208,7 @@ class WatchmanRouteProblem:
                 if group_a == group_b:  # belong to the same component
                     distance_matrix[map_edge_num, map_link_edge] = 1e-2
                 else:
-                    APSP_d = self.get_APSP(edge_num, link_edge, distance=True)
+                    APSP_d = self.APSP_d[edge_num, link_edge]
                     distance_matrix[map_edge_num, map_link_edge] = APSP_d
                     if edge_num == agent_code:
                         near_watchers.append(link_edge)
@@ -246,11 +243,6 @@ class WatchmanRouteProblem:
                     if v != w and m[v][k] > 0 and m[k][w] > 0 and (m[v][w] > m[v][k] + m[k][w] or m[v][w] == 0):
                         m[v][w] = m[v][k] + m[k][w]
         return m
-
-    def get_APSP(self, a, b, distance=True):
-        if a > b:
-            a, b = b, a
-        return self.APSP_d[(a, b)] if distance else self.APSP[(a, b)]
 
     def compact_edge(self, need_to_compact):
         """

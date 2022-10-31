@@ -1,12 +1,16 @@
 """
-version 2
-no path_cache compared with v3
+version 4.1
+f_value metric changed
+turn dict type to list
+final date: 2022.10.28
 """
 from package import *
 from WRP_solver import WatchmanRouteProblem
 
 
 class State:
+    MAX_VAR_V = None
+
     def __init__(self, watchmen, h, w):
         self.h = h
         self.w = w
@@ -20,7 +24,7 @@ class State:
 
     def get_paths(self, only_length=False):
         if only_length:
-            return {w.get_number(): len(w.path)-1 for w in self.watchmen.values()}
+            return {w.get_number(): len(w.path) - 1 for w in self.watchmen.values()}
         else:
             return {w.get_number(): w.path for w in self.watchmen.values()}
 
@@ -34,10 +38,12 @@ class State:
         self.watchmen[number] = new_watchman
         self.f_v = self.calc_f_v(self.get_paths(only_length=True))
 
-    @staticmethod
-    def calc_f_v(paths: dict):
+    @classmethod
+    def calc_f_v(cls, paths: dict):
         paths = list(paths.values())
-        f_v = round(np.var(paths)) + max(paths)
+        var_v, max_v = np.var(paths), max(paths)
+        w = var_v / cls.MAX_VAR_V
+        f_v = round(w * var_v) + max(paths) + round(np.mean(paths))
         return f_v
 
     def get_class(self, no_obstacles=False):
@@ -45,7 +51,7 @@ class State:
         :param no_obstacles:  if true, remove cells which are obstacles
         """
         n_agent = len(self.watchmen)
-        clustering = np.zeros((self.h*self.w, n_agent))
+        clustering = np.zeros((self.h * self.w, n_agent))
         for num, w in self.watchmen.items():
             clustering[list(w.empty_cells), num] = 1
         if no_obstacles:
@@ -104,17 +110,40 @@ class MWRP:
         self.watchmen = [Watchman(i) for i in range(self.n_agent)]
         self.empty_cells = set()
         self.start = start
-        self.LOS, self.APSP, self.APSP_d = {}, {}, {}
+        self.LOS = [[] for i in range(self.h * self.w)]
+        self.APSP = Myarray((self.h * self.w, self.h * self.w))
+        self.APSP_d = np.zeros((self.h * self.w, self.h * self.w))
         self.edge_list, self.nodes = {}, 0
         self.pq_l2 = PriorityQueue()
+        self.path_cache = {}
 
     def restart(self):
         self.start = None
         self.empty_cells = set()
         self.watchmen = [Watchman(i) for i in range(self.n_agent)]
-        self.LOS, self.APSP, self.APSP_d = {}, {}, {}
-        self.edge_list= {}
+        self.LOS = [[] for i in range(self.h * self.w)]
+        self.APSP = Myarray((self.h * self.w, self.h * self.w))
+        self.APSP_d = np.zeros((self.h * self.w, self.h * self.w))
+        self.edge_list = {}
         self.pq_l2 = PriorityQueue()
+        self.path_cache = {}
+
+    def get_path(self, watchman):
+        hash_value = self.get_hash_value(watchman.start, watchman.empty_cells)
+        if hash_value in self.path_cache:
+            path = self.path_cache[hash_value]
+            # print("get path from cache!!")
+        else:
+            path = self.solve_WRP(watchman)
+            self.path_cache[hash_value] = path
+        return path
+
+    def get_hash_value(self, start, empty_cells):
+        start_s = str(self.encode(start[0], start[1]))
+        s = start_s + "".join([*map(str, empty_cells)])
+        s = s.encode('utf-8')
+        hash_v = hashlib.md5(s).hexdigest()
+        return hash_v
 
     def run(self, test_times):
         np.random.seed(42)
@@ -135,6 +164,11 @@ class MWRP:
             self.watchmen_init(class_)
             for w in self.watchmen:
                 w.path = self.solve_WRP(w)
+                hash_value = self.get_hash_value(w.start, w.empty_cells)
+                self.path_cache[hash_value] = w.path
+            cur_max_p = max([len(i) - 1 for i in self.path_cache.values()])
+            MAX_VAR_V = np.var([0] * (self.n_agent - 1) + [cur_max_p])
+            State.MAX_VAR_V = MAX_VAR_V
             cur_state = State(self.watchmen, h=self.h, w=self.w)
             if self.params['visualize']:
                 self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
@@ -176,12 +210,12 @@ class MWRP:
         end_time = time.perf_counter()
         print("total time:{:.3f}s, expanding nodes:{}"
               .format(end_time - start,
-                      self.nodes/ test_times))
+                      self.nodes / test_times))
         if self.params['write_to_file']:
             f.write("total time:{:.3f}s, expanding nodes:{},"
                     " successful time:{}, avg_max_paths_len:{}, per_exe_time:{}\n"
                     .format(end_time - start,
-                            self.nodes/ test_times,
+                            self.nodes / test_times,
                             len(max_paths_len),
                             np.mean(max_paths_len),
                             (end_time - start) / len(max_paths_len)))
@@ -197,7 +231,7 @@ class MWRP:
         real_cell_idx = sorted(list(self.empty_cells))  # after removing obstacles, the idx have changed
         for cur_class in range(n_class):
             assert isinstance(class_, np.ndarray)
-            class_idx = np.where(class_ == cur_class)[0]   # 外面包了一层元组类型,需要去掉
+            class_idx = np.where(class_ == cur_class)[0]  # 外面包了一层元组类型,需要去掉
             temp_watchman = self.watchmen[cur_class]
             temp_empty_cells = [real_cell_idx[idx] for idx in class_idx]  # need convert to set type later
             # start point
@@ -208,7 +242,8 @@ class MWRP:
                 if selected[n] == 1:
                     continue
                 start_code = self.encode(self.start[n][0], self.start[n][1])
-                distance_to_start = [self.get_APSP(start_code, c, distance=True) for c in temp_empty_cells]
+
+                distance_to_start = [self.APSP_d[start_code, c] for c in temp_empty_cells]
                 new_closest_cell = temp_empty_cells[np.argmin(distance_to_start)]  # used later
                 new_avg_d = np.average(distance_to_start)
                 if new_avg_d < avg_d:
@@ -228,7 +263,7 @@ class MWRP:
             if cur_start_pos_code in temp_empty_cells:
                 temp_watchman.empty_cells = temp_empty_cells
             else:
-                path_cells = self.get_APSP(cur_start_pos_code, closest_cell, distance=False)
+                path_cells = self.APSP[cur_start_pos_code, closest_cell]
                 temp_empty_cells = temp_empty_cells | set(path_cells)
                 temp_watchman.empty_cells = temp_empty_cells
             # edge_list
@@ -246,8 +281,7 @@ class MWRP:
 
     def clustering(self):
         matrix = np.zeros((self.h * self.w, self.h * self.w + 2))
-        for pos, d in self.APSP_d.items():
-            matrix[[pos[0], pos[1]], [pos[1], pos[0]]] = d  # np.log1p(d)
+        matrix[:, :self.h * self.w] = self.APSP_d.copy()
 
         non_zero_idx = np.where(matrix.sum(axis=1) != 0)[0]  # np.where return tuple type, need [0] to get result
         # if non_zero_idx[0]=5, means the first non-obstacle cell is No.5 cell
@@ -259,6 +293,7 @@ class MWRP:
 
         # remove obstacle cell_idx
         matrix = matrix[non_zero_idx, :]
+        # result = KMeans(self.n_agent).fit_predict(matrix)
         n_start_pos = [self.encode(pos[0], pos[1]) for pos in self.start]
         result = MyKmeans(self.n_agent, non_zero_idx, self.APSP_d, self.edge_list, n_start_pos).fit_predict(matrix)
         print(f"start pos: {self.start} \nclustering result:{Counter(result)}", )
@@ -298,7 +333,7 @@ class MWRP:
                 watchman_2 = cur_state.get_watchman(cls_2)
                 path_len_cls_2 = watchman_2.get_path_len()
                 # cls_1的路径长度必须超过cls_2，才考虑分配
-                if cls_1 == cls_2 or (path_len_cls_1-path_len_cls_2 < tolerance_size):
+                if cls_1 == cls_2 or (path_len_cls_1 - path_len_cls_2 < tolerance_size):
                     continue
                 """
                 from different watchman and length demand satisfied, do assign operation
@@ -306,13 +341,13 @@ class MWRP:
                 """
                 # self.show_real_pos([cell, nxt_cell])
                 path_cls_1 = watchman_1.path
-                distances = [self.get_APSP(cell, c, distance=True) for c in path_cls_1]
+                distances = [self.APSP_d[cell, c] for c in path_cls_1]
                 closest_idx = path_cls_1[np.argmin(distances)]
                 # if start point, skip
                 if closest_idx == self.encode(watchman_1.start[0], watchman_1.start[1]):
                     continue
 
-                path_to_closest_idx = set(self.get_APSP(cell, closest_idx, distance=False))
+                path_to_closest_idx = set(self.APSP[cell, closest_idx])
                 # 考虑分配这个点会影响到的所有点
                 cell_idx_in_path = np.where(np.array(path_cls_1) == closest_idx)[0]
                 assert isinstance(path_cls_1, list)
@@ -322,7 +357,7 @@ class MWRP:
                 elif len(cell_idx_in_path) == 2:
                     need_to_assigns = path_cls_1[cell_idx_in_path[0]:cell_idx_in_path[1] + 1]
                     new_path_cls_1 = path_cls_1[:cell_idx_in_path[0]] + \
-                                          path_cls_1[cell_idx_in_path[1] + 1:]
+                                     path_cls_1[cell_idx_in_path[1] + 1:]
                 else:  # too many times, give up assigning
                     continue
 
@@ -330,7 +365,7 @@ class MWRP:
                     # 为succ寻找是否存在新的前接节点, 如果存在，只需要去掉当前点即可，后续路径保留
                     succ = need_to_assigns[1]
                     for c in new_path_cls_1:
-                        if self.get_APSP(succ, c, distance=True) <= 1:  # find successor
+                        if self.APSP_d[succ, c] <= 1:  # find successor
                             # self.show_real_pos([succ, c])
                             need_to_assigns = [need_to_assigns[0]]
                             break
@@ -373,9 +408,10 @@ class MWRP:
                 new_watchman_2.edge_list = self.calc_new_edge_list(new_watchman_2.empty_cells)
                 # clustering[list(new_watchman_2.empty_cells)] = new_watchman_2.get_number()
 
-                # calc new path len
-                new_watchman_1.path = self.solve_WRP(new_watchman_1)
-                new_watchman_2.path = self.solve_WRP(new_watchman_2)
+                # calc new path len and store it into path_cache
+                new_watchman_1.path = self.get_path(new_watchman_1)
+                new_watchman_2.path = self.get_path(new_watchman_2)
+
                 # 剩下的步骤是生成新的状态，然后放入队列中
                 new_state = deepcopy(cur_state)
                 new_state.update_watchman(new_watchman_1)
@@ -421,15 +457,15 @@ class MWRP:
     def decode(self, code):
         return code // self.w, code % self.w
 
-    def get_APSP(self, a, b, distance=True):
-        if a > b:
-            a, b = b, a
-        elif a == b:
-            if distance:
-                return 0
-            else:
-                return []
-        return self.APSP_d[(a, b)] if distance else self.APSP[(a, b)]
+    # def get_APSP(self, a, b, distance=True):
+    #     if a > b:
+    #         a, b = b, a
+    #     elif a == b:
+    #         if distance:
+    #             return 0
+    #         else:
+    #             return []
+    #     return self.APSP_d[(a, b)] if distance else self.APSP[(a, b)]
 
     def initialize(self):
         """
@@ -468,8 +504,9 @@ class MWRP:
             a = temp_list[i]
             for j in range(i + 1, len(temp_list)):
                 b = temp_list[j]
-                self.APSP[(a, b)] = self.get_path_from_pred(predecessors, a, b)
-                self.APSP_d[(a, b)] = int(dist_matrix[a, b])
+                self.APSP[a, b] = self.get_path_from_pred(predecessors, a, b)
+                self.APSP[b, a] = self.APSP[a, b]
+                self.APSP_d[[a, b], [b, a]] = int(dist_matrix[a, b])
         del temp_list, dist_matrix, predecessors
         # generate start_pos
         if not self.start:
@@ -614,11 +651,11 @@ def main():
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WR": True,
-              "n_agent": 3, "heuristic": "TSP", "write_to_file": True,
-              "silent": True, "visualize": False}  # TSP,MST,agg_h, None
+              "n_agent": 5, "heuristic": "agg_h", "write_to_file": True,
+              "silent": True, "visualize": False}
+    # heuristic: TSP,MST,agg_h, None
     start = None  # give the pos responding to n_agent
-    # start = [(10, 6), (12, 19)]  # 等会测试那个0lak的地图用
-    # start = [(0, 10), (3, 9), (0, 8), (6, 7), (8, 10)]
+    # start = [(6, 9), (6, 7), (6, 1)]
     test_times = 100
     # map = np.array([[1, 1, 0, 0],
     #                 [1, 1, 0, 1],

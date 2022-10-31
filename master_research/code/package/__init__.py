@@ -16,6 +16,9 @@ import matplotlib.pyplot as plt
 from python_tsp.heuristics import solve_tsp_local_search
 from sklearn.cluster import KMeans
 from collections import Counter
-from .PQ import PriorityQueue
+from .my_structure import PriorityQueue
+from .my_structure import Myarray
+from .balanced_clustering_v2 import MyKmeans2
 from .balanced_clustering import MyKmeans
 from tqdm import tqdm, trange
+import hashlib

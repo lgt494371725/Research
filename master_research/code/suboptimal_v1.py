@@ -72,6 +72,7 @@ class WatchmanRouteProblem:
 
     def run(self, test_times):
         # self.visualize([])
+        np.random.seed(42)
         self.initialize()
         seen = self.LOS[self.start]
         path = [self.start]

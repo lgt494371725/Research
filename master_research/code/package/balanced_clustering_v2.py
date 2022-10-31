@@ -1,3 +1,6 @@
+"""
+adapted to multi-class
+"""
 import numpy as np
 import math
 from collections import Counter
@@ -50,7 +53,7 @@ class Cluster:
             self.reachable -= {cell}
 
 
-class MyKmeans:
+class MyKmeans2:
     """
     可以基于这个去做一些调整
     """
@@ -111,26 +114,18 @@ class MyKmeans:
                 # if not is_change:
                 #     print("clustering failed, restart")
                 is_change = False
-                for cluster in self.clusters:
-                    to_remove = []  # 有些cell候补已经被别的簇拿走了，所以需要去掉
-                    candidates = cluster.reachable  # reachable
-                    min_d = float('inf')
-                    min_idx = -1
+                for cluster in self.clusters:  # ===========================
+                    candidates = cluster.reachable.copy()  # reachable
                     for c in candidates:
-                        if distances[c] != -1:  # 说明已经被别的簇吸收了
-                            to_remove.append(c)
-                            continue
                         pred = cluster.get_predecessor(c)
-                        temp_d = distances[pred] + 1  # the distance between current and root
-                        if temp_d < min_d:
-                            min_d = temp_d
-                            min_idx = c
-                    if min_idx == -1:  # 说明已经没有候补了
-                        continue
-                    cluster.remove_reachable(to_remove)
-                    cluster.add_member(min_idx, self.edge_list[min_idx])
-                    is_change = True
-                    distances[min_idx] = min_d
+                        temp_d = distances[pred] + 1  # the distance between current cell and root
+                        if distances[c] != -1 and temp_d > distances[c]:
+                            # 已经被归属其他簇，且距离小于当前簇，则不满足多分类条件
+                            cluster.remove_reachable([c])
+                            continue
+                        cluster.add_member(c, self.edge_list[c])
+                        is_change = True
+                        distances[c] = temp_d
             # 记录前一次聚类完成后的中心
             prev_centroids = [cluster.central_idx for cluster in self.clusters]
             # 更新中心, distances也需要重置
@@ -154,20 +149,19 @@ class MyKmeans:
                 for cluster in self.clusters:
                     cluster.predecessor = {key: value for key, value in cluster.predecessor.items()
                                            if key in cluster.members}
-                return self.balanced_connect_processing(result)
+                return result
+                # return self.balanced_connect_processing(result)
             self.clusters = new_clusters
             distances = new_distances
         # else:
         #     raise RuntimeError("max_iteration over, clustering failed!!")
 
     def get_clustering_result(self, mapping):
-        result = [-1] * self.n_sample
+        clustering = np.zeros((self.n_sample, self.k))
         for cluster_code, cluster in enumerate(self.clusters):
             idxes = [mapping[c] for c in cluster.members]
-            for idx in idxes:
-                result[idx] = cluster_code
-        assert -1 not in result
-        return result
+            clustering[idxes, cluster_code] = 1
+        return clustering
 
     def balanced_connect_processing(self, clustering):
         """

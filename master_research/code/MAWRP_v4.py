@@ -1,8 +1,9 @@
 """
-version 4.1
-path cache complete
-turn dict type to list
-final date: 2022.10.28
+version 4.2
+新增判断连通性的条件
+分配cell时也增加了cache，用于跳过相同情况
+分配手法优化（如果被分配方是multi-class,需要考虑交集问题)
+final date: 2022.11.8
 """
 from package import *
 from WRP_solver import WatchmanRouteProblem
@@ -18,13 +19,9 @@ class State:
         self.f_v = self.calc_f_v(self.get_paths(only_length=True))  # higher level
         self.clustering = None
 
-    def is_all_finish(self):
-        return False
-        # return all([w.is_finish() for w in self.watchmen])
-
     def get_paths(self, only_length=False):
         if only_length:
-            return {w.get_number(): len(w.path)-1 for w in self.watchmen.values()}
+            return {w.get_number(): len(w.path) - 1 for w in self.watchmen.values()}
         else:
             return {w.get_number(): w.path for w in self.watchmen.values()}
 
@@ -42,8 +39,8 @@ class State:
     def calc_f_v(cls, paths: dict):
         paths = list(paths.values())
         var_v, max_v = np.var(paths), max(paths)
-        w = var_v/cls.MAX_VAR_V
-        f_v = round(w*var_v) + max(paths) + round(np.mean(paths))
+        w = var_v / cls.MAX_VAR_V
+        f_v = round(w * var_v) + max(paths) + round(np.mean(paths))
         return f_v
 
     def get_class(self, no_obstacles=False):
@@ -51,7 +48,7 @@ class State:
         :param no_obstacles:  if true, remove cells which are obstacles
         """
         n_agent = len(self.watchmen)
-        clustering = np.zeros((self.h*self.w, n_agent))
+        clustering = np.zeros((self.h * self.w, n_agent))
         for num, w in self.watchmen.items():
             clustering[list(w.empty_cells), num] = 1
         if no_obstacles:
@@ -70,12 +67,6 @@ class Watchman:
         self.empty_cells = set()
         self.edge_list = {}
         self.path = None
-        # self.can_see = set()
-
-    # def calc_can_see(self, LOS):
-    #     for cell in self.path:
-    #         self.can_see |= set(LOS[cell])
-    #     assert self.can_see == self.empty_cells
 
     def get_number(self):
         return self.No
@@ -110,7 +101,7 @@ class MWRP:
         self.watchmen = [Watchman(i) for i in range(self.n_agent)]
         self.empty_cells = set()
         self.start = start
-        self.LOS = [[] for i in range(self.h*self.w)]
+        self.LOS = [[] for i in range(self.h * self.w)]
         self.APSP = Myarray((self.h * self.w, self.h * self.w))
         self.APSP_d = np.zeros((self.h * self.w, self.h * self.w))
         self.edge_list, self.nodes = {}, 0
@@ -140,7 +131,7 @@ class MWRP:
 
     def get_hash_value(self, start, empty_cells):
         start_s = str(self.encode(start[0], start[1]))
-        s = start_s+"".join([*map(str, empty_cells)])
+        s = start_s + "".join([*map(str, empty_cells)])
         s = s.encode('utf-8')
         hash_v = hashlib.md5(s).hexdigest()
         return hash_v
@@ -154,68 +145,68 @@ class MWRP:
         bar = tqdm(range(test_times))
         for i in bar:
             bar.set_description("test time processing")
-            # try:
+            try:
 
-            # initial stage
-            self.initialize()
-            # initial_time = time.perf_counter() - start
-            # print("initialization complete! time:{} s,".format(initial_time))
-            class_ = self.clustering()
-            self.watchmen_init(class_)
-            for w in self.watchmen:
-                w.path = self.solve_WRP(w)
-                hash_value = self.get_hash_value(w.start, w.empty_cells)
-                self.path_cache[hash_value] = w.path
-            cur_max_p = max([len(i)-1 for i in self.path_cache.values()])
-            MAX_VAR_V = np.var([0]*(self.n_agent-1)+[cur_max_p])
-            State.MAX_VAR_V = MAX_VAR_V
-            cur_state = State(self.watchmen, h=self.h, w=self.w)
-            if self.params['visualize']:
-                self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
-            best_state = cur_state
+                # initial stage
+                self.initialize()
+                # initial_time = time.perf_counter() - start
+                # print("initialization complete! time:{} s,".format(initial_time))
+                class_ = self.clustering()
+                self.watchmen_init(class_)
+                for w in self.watchmen:
+                    w.path = self.solve_WRP(w)
+                    hash_value = self.get_hash_value(w.start, w.empty_cells)
+                    self.path_cache[hash_value] = w.path
+                cur_max_p = max([len(i) - 1 for i in self.path_cache.values()])
+                MAX_VAR_V = np.var([0] * (self.n_agent - 1) + [cur_max_p])
+                State.MAX_VAR_V = MAX_VAR_V
+                cur_state = State(self.watchmen, h=self.h, w=self.w)
+                if self.params['visualize']:
+                    self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
+                best_state = cur_state
 
-            # improve stage
-            max_iter = 300
-            early_stop = 0
-            tolerant = 10
-            for loop in range(max_iter):  # loop until result converges
-                self.next_step(cur_state)
-                if self.pq_l2.is_empty():
-                    break
-                cur_state = self.pq_l2.pop_()
-                if best_state.f_v >= cur_state.f_v:  # 停止条件需要接着优化
-                    best_state = cur_state
-                else:
-                    early_stop += 1
-                    if early_stop == tolerant:
-                        print("result has been stable, early stop!!")
+                # improve stage
+                max_iter = 300
+                early_stop = 0
+                tolerant = 10
+                for loop in range(max_iter):  # loop until result converges
+                    self.next_step(cur_state)
+                    if self.pq_l2.is_empty():
                         break
-                # self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
-            # assert self.check_finish(best_state.get_paths()), "wrong answer！"
-            if self.params['visualize']:
-                self.visualize(list(best_state.get_paths().values()),
-                               class_=best_state.get_class(no_obstacles=True))
-            # log
-            paths_length = list(best_state.get_paths(only_length=True).values())
-            max_paths_len.append(max(paths_length) - 1)
-            if self.params['write_to_file']:
-                f.write(f"round{i}:start_pos:{self.start}, paths length:{paths_length}, min_sum:{sum(paths_length)}"
-                        f", min_max:{max(paths_length)}\n")
-            self.restart()
+                    cur_state = self.pq_l2.pop_()
+                    if best_state.f_v >= cur_state.f_v:  # 停止条件需要接着优化
+                        best_state = cur_state
+                    else:
+                        early_stop += 1
+                        if early_stop == tolerant:
+                            print("result has been stable, early stop!!")
+                            break
+                    # self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
+                # assert self.check_finish(best_state.get_paths()), "wrong answer！"
+                if self.params['visualize']:
+                    self.visualize(list(best_state.get_paths().values()),
+                                   class_=best_state.get_class(no_obstacles=True))
+                # log
+                paths_length = list(best_state.get_paths(only_length=True).values())
+                max_paths_len.append(max(paths_length) - 1)
+                if self.params['write_to_file']:
+                    f.write(f"round{i}:start_pos:{self.start}, paths length:{paths_length}, min_sum:{sum(paths_length)}"
+                            f", min_max:{max(paths_length)}\n")
+                self.restart()
 
-            # except Exception as e:
-            #     print(f"----------main program wrong:{e}")
-            #     self.restart()
-            #     continue
+            except Exception as e:
+                print(f"----------main program wrong:{e}")
+                self.restart()
+                continue
         end_time = time.perf_counter()
         print("total time:{:.3f}s, expanding nodes:{}"
               .format(end_time - start,
-                      self.nodes/ test_times))
+                      self.nodes / test_times))
         if self.params['write_to_file']:
             f.write("total time:{:.3f}s, expanding nodes:{},"
                     " successful time:{}, avg_max_paths_len:{}, per_exe_time:{}\n"
                     .format(end_time - start,
-                            self.nodes/ test_times,
+                            self.nodes / test_times,
                             len(max_paths_len),
                             np.mean(max_paths_len),
                             (end_time - start) / len(max_paths_len)))
@@ -231,10 +222,10 @@ class MWRP:
         real_cell_idx = sorted(list(self.empty_cells))  # after removing obstacles, the idx have changed
         for cur_class in range(n_class):
             assert isinstance(class_, np.ndarray)
-            class_idx = np.where(class_[:, cur_class] == 1)[0]   # 外面包了一层元组类型,需要去掉
+            class_idx = np.where(class_[:, cur_class] == 1)[0]  # 外面包了一层元组类型,需要去掉
             temp_watchman = self.watchmen[cur_class]
             temp_empty_cells = [real_cell_idx[idx] for idx in class_idx]  # need convert to set type later
-            # start point
+            # start point assignment
             min_idx = -1  # which start point is the closest to the cluster
             avg_d = float('inf')  # calc average distance between start point and cluster
             closest_cell = -1
@@ -318,13 +309,36 @@ class MWRP:
     def next_step(self, cur_state):
         """
         每个watchman都要准备好下一步，推入pq_l1,pq_l1的队中元素是watchman class
+        assigned: 一个step中, 如果某个cell从cls_1到cls_2的分配已经发生过，就不应该有下一次
         """
-        tolerance_size = 3
+        def is_next_1(need_to_assigns, new_path_cls_1):
+            succ = need_to_assigns[1]
+            for c in new_path_cls_1:
+                if self.APSP_d[succ, c] <= 1:  # find successor
+                    # self.show_real_pos([succ, c])
+                    return True
+            return False
+
+        def is_next_2(need_to_assigns, watchman_1):
+            # there may be some outliers
+            left_cells = watchman_1.empty_cells - set(need_to_assigns)
+            left_cells = {self.decode(i): 1 for i in left_cells}
+            left_cells = depth_first_search(self.map, left_cells, watchman_1.start)
+            left_cells = set([self.encode(x, y) for x, y in left_cells])
+            need_to_assigns = watchman_1.empty_cells - left_cells
+            # self.show_real_pos(need_to_assigns)
+
+            # except cell on the path
+            for c in need_to_assigns - {closest_idx}:
+                for r in left_cells:
+                    if self.APSP_d[r, c] <= 1:
+                        return True
+            return False
+
+        tolerance_size = 0
         clustering = cur_state.get_class()
-        # 获取所有cell都属于哪个watchman
-        # bar = tqdm(self.edge_list.items())
+        assigned = {}
         for cell, candidate in self.edge_list.items():  # plan to assign cell from cls_1 to cls_2
-            # bar.set_description("edge_list check processing")
             cls_1s = np.where(clustering[cell] != 0)[0]  # possibly multi-class
             for cls_1 in cls_1s:
                 watchman_1 = cur_state.get_watchman(cls_1)
@@ -332,11 +346,15 @@ class MWRP:
                 for nxt_cell in candidate:
                     cls_2s = np.where(clustering[nxt_cell] != 0)[0]
                     for cls_2 in cls_2s:
+                        assign_code = f"{cell}_{cls_1}_{cls_2}"
+                        if assigned.get(assign_code, 0):  # if exists, skip
+                            continue
                         # print(f"cell:{cell}， class:{cls_1}", f"|nxt_cell:{nxt_cell},class:{cls_2}")
+                        assigned[assign_code] = 1
                         watchman_2 = cur_state.get_watchman(cls_2)
                         path_len_cls_2 = watchman_2.get_path_len()
-                        # cls_1的路径长度必须超过cls_2，才考虑分配
-                        if cls_1 == cls_2 or (path_len_cls_1-path_len_cls_2 < tolerance_size):
+                        # do assignment only when path of cls_1 longer than path of cls_2
+                        if cls_1 == cls_2 or (path_len_cls_1 - path_len_cls_2 < tolerance_size):
                             continue
                         """
                         from different watchman and length demand satisfied, do assign operation
@@ -360,26 +378,30 @@ class MWRP:
                         elif len(cell_idx_in_path) == 2:
                             need_to_assigns = path_cls_1[cell_idx_in_path[0]:cell_idx_in_path[1] + 1]
                             new_path_cls_1 = path_cls_1[:cell_idx_in_path[0]] + \
-                                                  path_cls_1[cell_idx_in_path[1] + 1:]
+                                             path_cls_1[cell_idx_in_path[1] + 1:]
                         else:  # too many times, give up assigning
                             continue
-
+                        """
+                        确认连通性, 如果存在以下情况，则去掉当前点即可，后续路径保留
+                        is_next_1.后续路径与剩余的路径有接点(如走到当前点又回头了)
+                        is_next_2.除了当前点外，关联的后续路径以及他们牵连到的cell中，与agent剩余cell
+                        能够找到连接点
+                        """
                         if len(need_to_assigns) > 1:
-                            # 为succ寻找是否存在新的前接节点, 如果存在，只需要去掉当前点即可，后续路径保留
-                            succ = need_to_assigns[1]
-                            for c in new_path_cls_1:
-                                if self.APSP_d[succ, c] <= 1:  # find successor
-                                    # self.show_real_pos([succ, c])
-                                    need_to_assigns = [need_to_assigns[0]]
-                                    break
-                        # ---------condition2---------------
-                        # assess the improvement of f_v, if no improvement, skip
+                            if is_next_1(need_to_assigns, new_path_cls_1) or \
+                                    is_next_2(need_to_assigns, watchman_1):
+                                need_to_assigns = [need_to_assigns[0]]
+                        """
+                        ---------condition2---------------
+                        assess the improvement of f_v, if no improvement, skip
+                        """
                         epsilon = 1.5
                         pre_f_v = cur_state.f_v
                         pre_paths = cur_state.get_paths(only_length=True)
                         post_paths = pre_paths.copy()
                         post_paths[cls_1] -= len(need_to_assigns)
-                        post_paths[cls_2] += len(need_to_assigns)
+                        # need to consider the duplication when calc estimated length of cls_2
+                        post_paths[cls_2] += len(set(need_to_assigns) - cur_state.get_watchman(cls_2).empty_cells)
                         post_f_v = State.calc_f_v(post_paths)
 
                         if post_f_v / pre_f_v >= epsilon:
@@ -388,11 +410,11 @@ class MWRP:
                         need_to_assigns = set(need_to_assigns)
                         need_to_assigns |= path_to_closest_idx
                         # except cells on the path, there may be some outliers come out
-                        left_cells = cur_state.get_watchman(cls_1).empty_cells - need_to_assigns
+                        left_cells = watchman_1.empty_cells - need_to_assigns
                         left_cells = {self.decode(i): 1 for i in left_cells}
-                        new_can_reach = depth_first_search(self.map, left_cells, self.decode(new_path_cls_1[0]))
+                        new_can_reach = depth_first_search(self.map, left_cells, watchman_1.start)
                         new_can_reach = set([self.encode(x, y) for x, y in new_can_reach])
-                        outliers = cur_state.get_watchman(cls_1).empty_cells - new_can_reach
+                        outliers = watchman_1.empty_cells - new_can_reach
                         # self.show_real_pos(need_to_assigns)
                         need_to_assigns |= outliers
                         # self.show_real_pos(need_to_assigns)
@@ -408,9 +430,12 @@ class MWRP:
 
                         new_watchman_2 = Watchman(watchman_2.No)
                         new_watchman_2.start = watchman_2.start
-                        new_watchman_2.empty_cells = watchman_2.empty_cells | need_to_assigns
-                        new_watchman_2.edge_list = self.calc_new_edge_list(new_watchman_2.empty_cells)
-                        # clustering[list(new_watchman_2.empty_cells)] = new_watchman_2.get_number()
+                        to_cls2_cells = need_to_assigns - watchman_2.empty_cells
+                        new_watchman_2.empty_cells = watchman_2.empty_cells | to_cls2_cells
+                        if to_cls2_cells == set():
+                            new_watchman_2.edge_list = watchman_2.edge_list
+                        else:
+                            new_watchman_2.edge_list = self.calc_new_edge_list(new_watchman_2.empty_cells)
 
                         # calc new path len and store it into path_cache
                         new_watchman_1.path = self.get_path(new_watchman_1)
@@ -642,21 +667,22 @@ def main():
     path = r"..\maps"
     files = os.listdir(path)
     os.chdir(path)
-    params = {"f_weight": 1, "f_option": "WA",
+    params = {"f_weight": 10, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WR": True,
-              "n_agent": 4, "heuristic": "agg_h", "write_to_file": True,
+              "n_agent": 4, "heuristic": "agg_h", "write_to_file": False,
               "silent": True, "visualize": True}
     # heuristic: TSP,MST,agg_h, None
     start = None  # give the pos responding to n_agent
-    # start = [(8, 0), (5, 6), (10, 0), (8, 7)]
+    # start = [(0, 4), (2, 1), (0, 0), (9, 8), (3, 8)]
     test_times = 1
-    # map = np.array([[1, 1, 0, 0],
-    #                 [1, 1, 0, 1],
-    #                 [0, 0, 0, 0],
-    #                 [1, 1, 0, 1]])  # for the latest test
-    # start = [(2, 0), (0, 2)]
+    # map = np.array([[0, 0, 0, 0, 0],
+    #                 [1, 1, 0, 1, 1],
+    #                 [0, 0, 0, 0, 0],
+    #                 [0, 1, 1, 1, 0],
+    #                 [0, 1, 0, 0, 0]])
+    # start = [(0, 0), (0, 4)]
     for file in files:
-        if file != "4_11d.txt":
+        if file != "1_den009d.map":
             continue
         map = read_map(file)
         sol = MWRP(map, start, **params)

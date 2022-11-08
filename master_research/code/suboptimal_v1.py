@@ -560,15 +560,15 @@ def main():
     path = r"../maps"
     files = os.listdir(path)
     os.chdir(path)
-    params = {"f_weight": 1, "f_option": "WA",
+    params = {"f_weight": 10, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WP": True,
-              "heuristic": "agg_h"}
+              "heuristic": "MST"}
     for file in files:
         print(file)
-        if file != "0_lak101d.map":
+        if file != "1_den009d.map":
             continue
         start, map = read_map(file)
-        test_times = 10
+        test_times = 1
         sol = WatchmanRouteProblem(map, start, **params)
         sol.run(test_times)
         break

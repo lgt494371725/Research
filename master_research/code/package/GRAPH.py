@@ -1,3 +1,5 @@
+
+
 # 邻接表法
 class Vertex:
     def __init__(self, key):
@@ -68,14 +70,12 @@ def depth_first_search(map, can_reach, start):
     :param map:  2-d array   1 means obstacles
     :param start:
     """
-    h, w = len(map), len(map[0])
     has_reach = {}
     stack = [start]
     while stack:
         x, y = stack.pop(0)
         for new_x, new_y in [(x-1, y), (x+1, y), (x, y-1), (x, y+1)]:
-            if h > new_x >= 0 == map[x][y] and 0 <= new_y < w and not has_reach.get((new_x, new_y), 0) \
-                    and can_reach.get((new_x, new_y)):
+            if can_reach.get((new_x, new_y)) and not has_reach.get((new_x, new_y), 0):
                 stack.append((new_x, new_y))
                 has_reach[(new_x, new_y)] = 1
     return has_reach

@@ -212,11 +212,12 @@ class MWRP:
                       self.nodes / test_times))
         if self.params['write_to_file']:
             f.write("total time:{:.3f}s, expanding nodes:{},"
-                    " successful time:{}, avg_max_paths_len:{}, per_exe_time:{}\n"
+                    " successful time:{}, avg_max_paths_len+var:{}+{}, per_exe_time:{}\n"
                     .format(end_time - start,
                             self.nodes / test_times,
                             len(max_paths_len),
                             np.mean(max_paths_len),
+                            np.std(max_paths_len),
                             (end_time - start) / len(max_paths_len)))
             f.close()
 
@@ -650,11 +651,11 @@ def main():
     os.chdir(path)
     params = {"f_weight": 1, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WR": True,
-              "n_agent": 4, "heuristic": "agg_h", "write_to_file": False,
-              "silent": True, "visualize": True}
+              "n_agent": 5, "heuristic": "agg_h", "write_to_file": False,
+              "verbose": True, "visualize": True}
     # heuristic: TSP,MST,agg_h, None
     start = None  # give the pos responding to n_agent
-    start = [(8, 24), (28, 6), (10, 16), (14, 8)]
+    start = [(2, 1), (14, 11), (11, 0), (12, 4), (16, 0)]
     test_times = 1
     # map = np.array([[0, 0, 0, 0, 0],
     #                 [1, 1, 0, 1, 1],
@@ -663,7 +664,7 @@ def main():
     #                 [0, 1, 0, 0, 0]])
     # start = [(0, 0), (0, 4)]
     for file in files:
-        if file != "0_lak101d.map":
+        if file != "2_maze_21d.txt":
             continue
         map = read_map(file)
         sol = MWRP(map, start, **params)

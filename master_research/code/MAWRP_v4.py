@@ -1,12 +1,14 @@
 """
-version 4.2
-新增判断连通性的条件
-分配cell时也增加了cache，用于跳过相同情况
-分配手法优化（如果被分配方是multi-class,需要考虑交集问题)
-final date: 2022.11.8
+version 4.4
+profiling进行效率优化
+定义实验函数
+final date: 2022.11.21
 """
+import pandas as pd
+
 from package import *
 from WRP_solver import WatchmanRouteProblem
+from config import optional_params
 
 
 class State:
@@ -100,7 +102,7 @@ class MWRP:
         self.n_agent = params.get("n_agent")
         self.watchmen = [Watchman(i) for i in range(self.n_agent)]
         self.empty_cells = set()
-        self.start = start
+        self.start = params.get("start")
         self.LOS = [[] for i in range(self.h * self.w)]
         self.APSP = Myarray((self.h * self.w, self.h * self.w))
         self.APSP_d = np.zeros((self.h * self.w, self.h * self.w))
@@ -139,8 +141,9 @@ class MWRP:
     def run(self, test_times):
         np.random.seed(42)
         start = time.perf_counter()
+        output_file_name = f"{self.params['f_weight']}_{self.n_agent}_{self.params['heuristic']}.txt"
         if self.params['write_to_file']:
-            f = open(f"../results/{self.n_agent}_agent_test_results_{self.params.get('heuristic')}.txt", "w+")
+            f = open(f"../results/{output_file_name}", "w+")
         max_paths_len = []
         bar = tqdm(range(test_times))
         for i in bar:
@@ -198,28 +201,35 @@ class MWRP:
                 print(f"----------main program wrong:{e}")
                 self.restart()
                 continue
-        end_time = time.perf_counter()
-        print("total time:{:.3f}s, expanding nodes:{}"
-              .format(end_time - start,
-                      self.nodes / test_times))
+        total_time = time.perf_counter() - start
+        expansion = self.nodes / test_times
+        successful = len(max_paths_len)
+        avg_max_paths_len = round(np.mean(max_paths_len), 3)
+        paths_len_std = round(np.std(max_paths_len), 3)
+        per_exe_time = total_time/successful
+        string = "total time:{:.3f}s, expansion:{}, successful time:{}, " \
+                 "avg_max_paths_len+std:{:.3f}±{:.3f}, per_exe_time:{}\n".format(total_time, expansion,
+                                                                                 len(max_paths_len), avg_max_paths_len,
+                                                                                 paths_len_std, per_exe_time)
         if self.params['write_to_file']:
-            f.write("total time:{:.3f}s, expanding nodes:{},"
-                    " successful time:{}, avg_max_paths_len:{}, per_exe_time:{}\n"
-                    .format(end_time - start,
-                            self.nodes / test_times,
-                            len(max_paths_len),
-                            np.mean(max_paths_len),
-                            (end_time - start) / len(max_paths_len)))
+            f.write(string)
             f.close()
+        return_dict = {"total_time": total_time, "expansion": expansion,
+                       "avg_max_paths_len": avg_max_paths_len, "paths_len_std": paths_len_std}
+        return return_dict
 
     def watchmen_init(self, class_):
         """
         class_: classification result for cells, class_[0] is not representing for No0.cell,
         but the first non-obstacle cell.
+        start point assignment is a linear assignment problem
+        make a matrix with row: start_pos col: cluster  value:average distance
         """
         n_class = self.n_agent
         selected = [0 for i in range(self.n_agent)]  # for designating start point
         real_cell_idx = sorted(list(self.empty_cells))  # after removing obstacles, the idx have changed
+        # start_cluster_m = np.zeros((self.n_agent, self.n_agent))
+
         for cur_class in range(n_class):
             assert isinstance(class_, np.ndarray)
             class_idx = np.where(class_[:, cur_class] == 1)[0]  # 外面包了一层元组类型,需要去掉
@@ -311,6 +321,7 @@ class MWRP:
         每个watchman都要准备好下一步，推入pq_l1,pq_l1的队中元素是watchman class
         assigned: 一个step中, 如果某个cell从cls_1到cls_2的分配已经发生过，就不应该有下一次
         """
+
         def is_next_1(need_to_assigns, new_path_cls_1):
             succ = need_to_assigns[1]
             for c in new_path_cls_1:
@@ -360,14 +371,14 @@ class MWRP:
                         from different watchman and length demand satisfied, do assign operation
                         find the closest cell in the path
                         """
-                        # self.show_real_pos([cell, nxt_cell])
+
                         path_cls_1 = watchman_1.path
                         distances = [self.APSP_d[cell, c] for c in path_cls_1]
                         closest_idx = path_cls_1[np.argmin(distances)]
                         # if start point, skip
                         if closest_idx == self.encode(watchman_1.start[0], watchman_1.start[1]):
                             continue
-
+                        # self.show_real_pos([cell, nxt_cell])
                         path_to_closest_idx = set(self.APSP[cell, closest_idx])
                         # 考虑分配这个点会影响到的所有点
                         cell_idx_in_path = np.where(np.array(path_cls_1) == closest_idx)[0]
@@ -397,11 +408,10 @@ class MWRP:
                         """
                         epsilon = 1.5
                         pre_f_v = cur_state.f_v
-                        pre_paths = cur_state.get_paths(only_length=True)
-                        post_paths = pre_paths.copy()
+                        post_paths = cur_state.get_paths(only_length=True)
                         post_paths[cls_1] -= len(need_to_assigns)
                         # need to consider the duplication when calc estimated length of cls_2
-                        post_paths[cls_2] += len(set(need_to_assigns) - cur_state.get_watchman(cls_2).empty_cells)
+                        post_paths[cls_2] += len(set(need_to_assigns) - watchman_2.empty_cells)
                         post_f_v = State.calc_f_v(post_paths)
 
                         if post_f_v / pre_f_v >= epsilon:
@@ -411,13 +421,14 @@ class MWRP:
                         need_to_assigns |= path_to_closest_idx
                         # except cells on the path, there may be some outliers come out
                         left_cells = watchman_1.empty_cells - need_to_assigns
+
                         left_cells = {self.decode(i): 1 for i in left_cells}
                         new_can_reach = depth_first_search(self.map, left_cells, watchman_1.start)
                         new_can_reach = set([self.encode(x, y) for x, y in new_can_reach])
+
+                        # self.show_real_pos(need_to_assigns)
                         outliers = watchman_1.empty_cells - new_can_reach
-                        # self.show_real_pos(need_to_assigns)
                         need_to_assigns |= outliers
-                        # self.show_real_pos(need_to_assigns)
 
                         start_code = self.encode(watchman_1.start[0], watchman_1.start[1])
                         if start_code in need_to_assigns:
@@ -446,6 +457,8 @@ class MWRP:
                         new_state.update_watchman(new_watchman_1)
                         new_state.update_watchman(new_watchman_2)
                         # print(f"add to pq, cell:{cell}", f"nxt_cell:{nxt_cell}")
+                        # self.visualize(list(new_state.get_paths().values()),
+                        #                class_=new_state.get_class(no_obstacles=True))
                         self.pq_l2.push_(new_state)
                         self.nodes += 1
         return None
@@ -645,7 +658,7 @@ class MWRP:
 
 
 def read_map(path):
-    print(path)
+    print("map: ", path)
     matrix = []
     with open(path) as f:
         for row, line in enumerate(f.readlines()[4:]):  # 前3行无用
@@ -664,30 +677,35 @@ def main():
     """
     DF: normal 2
     """
-    path = r"..\maps"
-    files = os.listdir(path)
-    os.chdir(path)
-    params = {"f_weight": 10, "f_option": "WA",
-              "DF_factor": 2, "IW": True, "WR": True,
-              "n_agent": 4, "heuristic": "agg_h", "write_to_file": False,
-              "silent": True, "visualize": True}
-    # heuristic: TSP,MST,agg_h, None
-    start = None  # give the pos responding to n_agent
-    # start = [(0, 4), (2, 1), (0, 0), (9, 8), (3, 8)]
-    test_times = 1
-    # map = np.array([[0, 0, 0, 0, 0],
-    #                 [1, 1, 0, 1, 1],
-    #                 [0, 0, 0, 0, 0],
-    #                 [0, 1, 1, 1, 0],
-    #                 [0, 1, 0, 0, 0]])
-    # start = [(0, 0), (0, 4)]
-    for file in files:
-        if file != "1_den009d.map":
-            continue
-        map = read_map(file)
-        sol = MWRP(map, start, **params)
-        sol.run(test_times)
-        break
+    # path = "../maps"
+    # files = os.listdir(path)
+    file_name = "../maps/4_11d.txt"
+    map = read_map(file_name)
+    results = []
+    for combi in product(optional_params['f_weight'], optional_params['IW'], optional_params['WR'],
+                         optional_params['n_agent'],
+                         optional_params['heuristic']):
+        my_params = {"f_weight": combi[0],
+                     "f_option": "WA",
+                     "DF_factor": 2,
+                     "IW": combi[1],
+                     "WR": combi[2],
+                     "n_agent": combi[3],
+                     "heuristic": combi[4],
+                     "write_to_file": False,
+                     "test_time": 1,
+                     # "start": None,
+                     "start": [(2, 1), (14, 11), (11, 0), (12, 4), (16, 0)],
+                     "verbose": True,
+                     "visualize": True}
+        sol = MWRP(map, **my_params)
+        optional = optional_params.keys()
+        result_dict = sol.run(my_params['test_time'])
+        results.append([my_params[o] for o in optional] + list(result_dict.values()))
+    my_columns = ["f_weight", "IW", "WR", "n_agent", "heuristic", "total_time", "expands", "avg_max_paths",
+                  "paths_len_std"]
+    my_results = pd.DataFrame(results, columns=my_columns)
+    my_results.to_excel("../results/experiment.xlsx")
 
 
 main()

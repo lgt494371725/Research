@@ -1,2 +1,0 @@
-round0:start_pos:[(2, 0), (0, 2)], paths length:[2, 0], min_sum:2, min_max:2
-total time:0.281s, expanding nodes:0.0, successful time:1, avg_max_paths_len:1.0, per_exe_time:0.2814958000000001

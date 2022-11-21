@@ -39,7 +39,7 @@ class WatchmanRouteProblem:
         self.DF_factor = params.get("DF_factor")
         self.IW, self.WR = params.get("IW"), params.get("WR")
         self.heuristic = params.get("heuristic")
-        self.silent = params.get("silent")
+        self.silent = params.get("verbose")
 
     def add_seen(self, seen, LOS):
         return seen | (LOS & self.empty_cells)
@@ -66,7 +66,7 @@ class WatchmanRouteProblem:
                                            BJP_DF=self.DF_factor)
         for new_pos in near_watchers:
             new_x, new_y = self.decode(new_pos)
-            path = self.APSP[cur_state.cur_pos, new_pos].copy() # the path will go through
+            path = self.APSP[cur_state.cur_pos, new_pos].copy()  # the path will go through
             # print(f"cur_pos:{a} to new_pos:{b}: {path}")
             assert 0 <= new_x < self.h and 0 <= new_y < self.w and self.map[new_x][new_y] != 1
             cur_path = cur_state.path.copy()
@@ -248,7 +248,6 @@ class WatchmanRouteProblem:
         """
         compact cells in need_to_compact
         """
-        # edge_list = deepcopy(self.edge_list)
         edge_list = {}
         for key, value in self.edge_list.items():
             edge_list[key] = value.copy()

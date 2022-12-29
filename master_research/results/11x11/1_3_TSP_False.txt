@@ -1,0 +1,21 @@
+round0:running time: 0.29, start_pos:[(0, 4), (9, 8), (2, 1)], paths length:[20, 24, 13], min_sum:57, min_max:24
+round1:running time: 2.767, start_pos:[(1, 7), (7, 1), (5, 3)], paths length:[18, 13, 28], min_sum:59, min_max:28
+round2:running time: 0.915, start_pos:[(10, 0), (10, 2), (0, 9)], paths length:[13, 24, 17], min_sum:54, min_max:24
+round3:running time: 1.528, start_pos:[(3, 5), (6, 9), (6, 5)], paths length:[36, 16, 13], min_sum:65, min_max:36
+round4:running time: 6.2, start_pos:[(1, 1), (6, 1), (5, 3)], paths length:[22, 14, 28], min_sum:64, min_max:28
+round5:running time: 0.225, start_pos:[(8, 4), (8, 10), (5, 0)], paths length:[16, 18, 31], min_sum:65, min_max:31
+round6:running time: 0.367, start_pos:[(6, 3), (2, 7), (6, 8)], paths length:[18, 27, 18], min_sum:63, min_max:27
+round7:running time: 2.805, start_pos:[(0, 0), (3, 5), (0, 7)], paths length:[12, 32, 19], min_sum:63, min_max:32
+round8:running time: 0.42, start_pos:[(1, 7), (5, 10), (4, 0)], paths length:[18, 25, 16], min_sum:59, min_max:25
+round9:running time: 5.846, start_pos:[(0, 3), (10, 10), (7, 7)], paths length:[33, 16, 19], min_sum:68, min_max:33
+round10:running time: 0.555, start_pos:[(8, 7), (5, 1), (0, 6)], paths length:[25, 16, 20], min_sum:61, min_max:25
+round11:running time: 0.571, start_pos:[(8, 0), (5, 6), (10, 0)], paths length:[26, 31, 12], min_sum:69, min_max:31
+round12:running time: 3.563, start_pos:[(0, 0), (0, 6), (4, 0)], paths length:[20, 38, 16], min_sum:74, min_max:38
+round13:running time: 0.387, start_pos:[(0, 6), (2, 1), (7, 10)], paths length:[20, 13, 24], min_sum:57, min_max:24
+round14:running time: 1.702, start_pos:[(7, 7), (10, 0), (8, 5)], paths length:[25, 12, 23], min_sum:60, min_max:25
+round15:running time: 1.715, start_pos:[(8, 6), (6, 7), (8, 5)], paths length:[12, 15, 44], min_sum:71, min_max:44
+round16:running time: 20.038, start_pos:[(6, 8), (5, 6), (8, 6)], paths length:[16, 13, 49], min_sum:78, min_max:49
+round17:running time: 0.447, start_pos:[(7, 7), (7, 10), (1, 7)], paths length:[18, 15, 28], min_sum:61, min_max:28
+round18:running time: 2.865, start_pos:[(1, 7), (1, 4), (6, 1)], paths length:[18, 33, 14], min_sum:65, min_max:33
+round19:running time: 1.5, start_pos:[(6, 3), (5, 7), (3, 8)], paths length:[17, 23, 21], min_sum:61, min_max:23
+pre-processing time:0.019s, runing time:54.718s, expansion:105.1, successful time:20, avg_max_paths_len+std:30.400Å}6.822, avg_sum_paths_len+std:63.700Å}5.832,per_exe_time:2.7359033099999577

@@ -71,7 +71,7 @@ class WatchmanRouteProblem:
         self.initialize()
         seen = self.LOS[self.start]
         path = [self.start]
-        print("LOS:", self.LOS)
+        # print("LOS:", self.LOS)
         # print("APSP_d:", self.APSP_d)
         # print("APSP:", self.APSP[(43, 64)])
         start = time.perf_counter()
@@ -119,9 +119,9 @@ class WatchmanRouteProblem:
             cur_seen = temp_state.seen
             for cell in path:
                 cur_seen = cur_seen | self.LOS[cell]
-            h_value = self.calc_MST_h(cur_seen, cur_path)
+            # h_value = self.calc_MST_h(cur_seen, cur_path)
             # h_value = 0
-            # h_value = self.calc_agg_h(cur_seen, cur_path)
+            h_value = self.calc_agg_h(cur_seen, cur_path)
             A_star_v = h_value + len(cur_path)
             self.pq.push_(State(cur_path, cur_seen, A_star_v))
             self.nodes += 1
@@ -453,15 +453,11 @@ def main():
     #                 [0, 0, 1, 1, 1],
     #                 [0, 1, 1, 1, 1]])
     # start = (4, 0)
-    path = "../maps"
-    files = os.listdir(path)
-    os.chdir(path)
-    for file in files:
-        print(file)
-        start, map = read_map(file)
-        test_times = 1
-        sol = WatchmanRouteProblem(map, start)
-        sol.run(test_times)
-        break
+    file_name = "4_11d.txt"
+    path = f"../maps/{file_name}"
+    start, map = read_map(path)
+    test_times = 1
+    sol = WatchmanRouteProblem(map, start)
+    sol.run(test_times)
 
 main()

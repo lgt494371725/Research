@@ -42,7 +42,7 @@ class State:
     def calc_f_v(cls, paths: dict):
         paths = list(paths.values())
         var_v, max_v = np.var(paths), max(paths)
-        w = var_v / cls.MAX_VAR_V
+        w = var_v / cls.MAX_VAR_V if cls.MAX_VAR_V else 0
         f_v = round(w * var_v) + max(paths) + round(np.mean(paths))
         return f_v
 
@@ -119,12 +119,7 @@ class MWRP:
 
     def restart(self):
         self.start = None
-        self.empty_cells = set()
         self.watchmen = [Watchman(i) for i in range(self.n_agent)]
-        self.LOS = [[] for i in range(self.h * self.w)]
-        self.APSP = Myarray((self.h * self.w, self.h * self.w))
-        self.APSP_d = np.zeros((self.h * self.w, self.h * self.w))
-        self.edge_list = {}
         self.pq_l2 = PriorityQueue()
         self.path_cache = {}
 
@@ -152,68 +147,69 @@ class MWRP:
             f = open(f"../results/{self.n_agent}_agent_test_results_{self.params.get('heuristic')}.txt", "w+")
         max_paths_len = []
         bar = tqdm(range(test_times))
+        start_time = time.perf_counter()
+        self.preprocessing()
+        pre_pro_time = time.perf_counter() - start_time
         for i in bar:
             bar.set_description("test time processing")
-            try:
-                # initial stage
-                self.initialize()
-                # initial_time = time.perf_counter() - start
-                # print("initialization complete! time:{} s,".format(initial_time))
-                class_ = self.clustering()
-                self.watchmen_init(class_)
-                for w in self.watchmen:
-                    w.path = self.solve_WRP(w)
-                    hash_value = self.get_hash_value(w.start, w.empty_cells)
-                    self.path_cache[hash_value] = w.path
-                cur_max_p = max([len(i) - 1 for i in self.path_cache.values()])
-                MAX_VAR_V = np.var([0] * (self.n_agent - 1) + [cur_max_p])
-                State.MAX_VAR_V = MAX_VAR_V
-                cur_state = State(self.watchmen, h=self.h, w=self.w)
-                if self.params['visualize']:
-                    self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
-                best_state = cur_state
+            # try:
+            # initial stage
+            self.choose_start_pos()
+            class_ = self.clustering()
+            self.watchmen_init(class_)
+            for w in self.watchmen:
+                w.path = self.solve_WRP(w)
+                hash_value = self.get_hash_value(w.start, w.empty_cells)
+                self.path_cache[hash_value] = w.path
+            cur_max_p = max([len(i) - 1 for i in self.path_cache.values()])
+            MAX_VAR_V = np.var([0] * (self.n_agent - 1) + [cur_max_p])
+            State.MAX_VAR_V = MAX_VAR_V
+            cur_state = State(self.watchmen, h=self.h, w=self.w)
+            if self.params['visualize']:
+                self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
+            best_state = cur_state
 
-                # improve stage
-                max_iter = 300
-                early_stop = 0
-                tolerant = 10
-                for loop in range(max_iter):  # loop until result converges
-                    self.next_step(cur_state)
-                    if self.pq_l2.is_empty():
+            # improve stage
+            max_iter = 300
+            early_stop = 0
+            tolerant = 10
+            for loop in range(max_iter):  # loop until result converges
+                self.next_step(cur_state)
+                if self.pq_l2.is_empty():
+                    break
+                cur_state = self.pq_l2.pop_()
+                if best_state.f_v >= cur_state.f_v:  # 停止条件需要接着优化
+                    best_state = cur_state
+                else:
+                    early_stop += 1
+                    if early_stop == tolerant:
+                        print("result has been stable, early stop!!")
                         break
-                    cur_state = self.pq_l2.pop_()
-                    if best_state.f_v >= cur_state.f_v:  # 停止条件需要接着优化
-                        best_state = cur_state
-                    else:
-                        early_stop += 1
-                        if early_stop == tolerant:
-                            print("result has been stable, early stop!!")
-                            break
-                    # self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
-                # assert self.check_finish(best_state.get_paths()), "wrong answer！"
-                if self.params['visualize']:
-                    self.visualize(list(best_state.get_paths().values()),
-                                   class_=best_state.get_class(no_obstacles=True))
-                # log
-                paths_length = list(best_state.get_paths(only_length=True).values())
-                max_paths_len.append(max(paths_length) - 1)
-                if self.params['write_to_file']:
-                    f.write(f"round{i}:start_pos:{self.start}, paths length:{paths_length}, min_sum:{sum(paths_length)}"
-                            f", min_max:{max(paths_length)}\n")
-                self.restart()
+                # self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
+            # assert self.check_finish(best_state.get_paths()), "wrong answer！"
+            if self.params['visualize']:
+                self.visualize(list(best_state.get_paths().values()),
+                               class_=best_state.get_class(no_obstacles=True))
+            # log
+            paths_length = list(best_state.get_paths(only_length=True).values())
+            max_paths_len.append(max(paths_length) - 1)
+            if self.params['write_to_file']:
+                f.write(f"round{i}:start_pos:{self.start}, paths length:{paths_length}, min_sum:{sum(paths_length)}"
+                        f", min_max:{max(paths_length)}\n")
+            self.restart()
 
-            except Exception as e:
-                print(f"----------main program wrong:{e}")
-                self.restart()
-                continue
+            # except Exception as e:
+            #     print(f"----------main program wrong:{e}")
+            #     self.restart()
+            #     continue
         end_time = time.perf_counter()
-        print("total time:{:.3f}s, expanding nodes:{}"
-              .format(end_time - start,
+        print("pre-processing time: {:.3f}s, total time:{:.3f}s, expanding nodes:{}"
+              .format(pre_pro_time, end_time - start,
                       self.nodes / test_times))
         if self.params['write_to_file']:
-            f.write("total time:{:.3f}s, expanding nodes:{},"
+            f.write("pre-processing time: {:.3f}s, total time:{:.3f}s, expanding nodes:{},"
                     " successful time:{}, avg_max_paths_len+var:{}+{}, per_exe_time:{}\n"
-                    .format(end_time - start,
+                    .format(pre_pro_time, end_time - start,
                             self.nodes / test_times,
                             len(max_paths_len),
                             np.mean(max_paths_len),
@@ -382,7 +378,7 @@ class MWRP:
                 #     continue
                 if post_f_v / pre_f_v >= epsilon:
                     continue
-
+                # self.show_real_pos([cell, nxt_cell])
                 # path_to_closest_idx also need to assign
                 need_to_assigns = set(need_to_assigns)
                 need_to_assigns |= path_to_closest_idx
@@ -418,7 +414,7 @@ class MWRP:
                 new_state.update_watchman(new_watchman_2)
                 # print(f"cell:{cell}", f"nxt_cell:{nxt_cell}")
                 self.pq_l2.push_(new_state)
-                # self.visualize(list(new_state.get_paths().values()), class_=new_state.get_class(no_obstacles=True))
+                self.visualize(list(new_state.get_paths().values()), class_=new_state.get_class(no_obstacles=True))
                 self.nodes += 1
         return None
 
@@ -467,7 +463,7 @@ class MWRP:
     #             return []
     #     return self.APSP_d[(a, b)] if distance else self.APSP[(a, b)]
 
-    def initialize(self):
+    def preprocessing(self):
         """
         prepare two lookup tables for efficiency
         self.LOS, self.empty_cells, self.APSP, self.APSP_d, self.edge_list
@@ -508,6 +504,16 @@ class MWRP:
                 self.APSP[b, a] = self.APSP[a, b]
                 self.APSP_d[[a, b], [b, a]] = int(dist_matrix[a, b])
         del temp_list, dist_matrix, predecessors
+
+        # initialize
+        self.params["LOS"] = self.LOS
+        self.params["empty_cells"] = self.empty_cells
+        self.params["APSP"] = self.APSP
+        self.params["APSP_d"] = self.APSP_d
+        self.params["edge_list"] = self.edge_list
+        print("pre-processing complete!")
+
+    def choose_start_pos(self):
         # generate start_pos
         if not self.start:
             cand_start = np.random.choice(list(self.empty_cells), self.n_agent, replace=False)
@@ -517,12 +523,6 @@ class MWRP:
         for i in range(self.n_agent):
             x, y = self.start[i]
             assert self.map[x, y] == 0, "出发点不符合条件"
-        # initialize
-        self.params["LOS"] = self.LOS
-        self.params["empty_cells"] = self.empty_cells
-        self.params["APSP"] = self.APSP
-        self.params["APSP_d"] = self.APSP_d
-        self.params["edge_list"] = self.edge_list
 
     def get_path_from_pred(self, pred_m, start, end):
         path = [end]
@@ -649,13 +649,13 @@ def main():
     path = r"..\maps"
     files = os.listdir(path)
     os.chdir(path)
-    params = {"f_weight": 1, "f_option": "WA",
+    params = {"f_weight": 10, "f_option": "WA",
               "DF_factor": 2, "IW": True, "WR": True,
-              "n_agent": 5, "heuristic": "agg_h", "write_to_file": False,
-              "verbose": True, "visualize": True}
+              "n_agent": 1, "heuristic": "agg_h", "write_to_file": False,
+              "verbose": False, "visualize": True}
     # heuristic: TSP,MST,agg_h, None
     start = None  # give the pos responding to n_agent
-    start = [(2, 1), (14, 11), (11, 0), (12, 4), (16, 0)]
+    # start = [(3, 5)]
     test_times = 1
     # map = np.array([[0, 0, 0, 0, 0],
     #                 [1, 1, 0, 1, 1],
@@ -664,7 +664,7 @@ def main():
     #                 [0, 1, 0, 0, 0]])
     # start = [(0, 0), (0, 4)]
     for file in files:
-        if file != "2_maze_21d.txt":
+        if file != "1_den009d.map":
             continue
         map = read_map(file)
         sol = MWRP(map, start, **params)

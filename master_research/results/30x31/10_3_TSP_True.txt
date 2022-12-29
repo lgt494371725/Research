@@ -1,0 +1,2 @@
+round0:running time: 597.089, start_pos:[(9, 22), (25, 8), (7, 7)], paths length:[17, 22, 16], min_sum:55, min_max:22
+pre-processing time:0.450s, runing time:597.321s, expansion:10714.0, successful time:1, avg_max_paths_len+std:22.000Å}0.000, avg_sum_paths_len+std:55.000Å}0.000,per_exe_time:597.3214114999998

@@ -1,3 +1,7 @@
+"""
+2022.12.26
+用floyd_warshell代替了我自己的floyd
+"""
 from package import *
 
 
@@ -221,10 +225,11 @@ class WatchmanRouteProblem:
                     temp.append(near_watchers[i])
             near_watchers = temp
         if TSP:
-            APSP_m = self.floyd_APSP(distance_matrix)
+            graph = csr_matrix(distance_matrix)
+            dist_matrix = floyd_warshall(csgraph=graph, directed=False, return_predecessors=False)
             pivots_map = [edge_map[i] for i in pivots]  # 各个pivot对应的map
             # 构建只有pivots节点的距离矩阵
-            matrix_for_pivot = APSP_m[pivots_map][:, pivots_map]  # 取出pivots对应的行和列, pivots第一个元素是agent位置
+            matrix_for_pivot = dist_matrix[pivots_map][:, pivots_map]  # 取出pivots对应的行和列, pivots第一个元素是agent位置
             # 所以该矩阵的第一行一定是agent
             m_len = len(matrix_for_pivot)
             tsp_m = np.zeros((m_len + 1, m_len + 1))
@@ -233,16 +238,6 @@ class WatchmanRouteProblem:
             return tsp_m, near_watchers
         else:
             return distance_matrix, near_watchers
-
-    def floyd_APSP(self, distance_matrix):
-        m = distance_matrix.copy()
-        length = len(m)
-        for k in range(length):
-            for v in range(length):
-                for w in range(length):
-                    if v != w and m[v][k] > 0 and m[k][w] > 0 and (m[v][w] > m[v][k] + m[k][w] or m[v][w] == 0):
-                        m[v][w] = m[v][k] + m[k][w]
-        return m
 
     def compact_edge(self, need_to_compact):
         """

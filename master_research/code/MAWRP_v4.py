@@ -4,7 +4,7 @@ profiling进行效率优化
 定义实验函数
 final date: 2022.11.21
 """
-import pandas as pd
+import time
 
 from package import *
 from WRP_solver import WatchmanRouteProblem
@@ -102,7 +102,7 @@ class MWRP:
         self.n_agent = params.get("n_agent")
         self.watchmen = [Watchman(i) for i in range(self.n_agent)]
         self.empty_cells = set()
-        self.start = params.get("start")
+        self.start = start
         self.LOS = [[] for i in range(self.h * self.w)]
         self.APSP = Myarray((self.h * self.w, self.h * self.w))
         self.APSP_d = np.zeros((self.h * self.w, self.h * self.w))
@@ -112,16 +112,13 @@ class MWRP:
 
     def restart(self):
         self.start = None
-        self.empty_cells = set()
         self.watchmen = [Watchman(i) for i in range(self.n_agent)]
-        self.LOS = [[] for i in range(self.h * self.w)]
-        self.APSP = Myarray((self.h * self.w, self.h * self.w))
-        self.APSP_d = np.zeros((self.h * self.w, self.h * self.w))
-        self.edge_list = {}
         self.pq_l2 = PriorityQueue()
         self.path_cache = {}
 
     def get_path(self, watchman):
+        if not self.params["hash_structure"]:
+            return self.solve_WRP(watchman)
         hash_value = self.get_hash_value(watchman.start, watchman.empty_cells)
         if hash_value in self.path_cache:
             path = self.path_cache[hash_value]
@@ -140,82 +137,96 @@ class MWRP:
 
     def run(self, test_times):
         np.random.seed(42)
-        start = time.perf_counter()
-        output_file_name = f"{self.params['f_weight']}_{self.n_agent}_{self.params['heuristic']}.txt"
+        output_file_name = f"{self.params['f_weight']}_{self.n_agent}_" \
+                           f"{self.params['heuristic']}_{self.params['pre-pruning']}.txt"
         if self.params['write_to_file']:
             f = open(f"../results/{output_file_name}", "w+")
         max_paths_len = []
+        sum_paths_len = []
+        start_time = time.perf_counter()
+        self.preprocessing()
+        pre_pro_time = time.perf_counter() - start_time
+
         bar = tqdm(range(test_times))
         for i in bar:
             bar.set_description("test time processing")
-            try:
+            # try:
+            round_start = time.perf_counter()
+            self.choose_start_pos()
+            # initial stage
+            class_ = self.clustering()
+            self.watchmen_init(class_)
+            for w in self.watchmen:
+                w.path = self.solve_WRP(w)
+                hash_value = self.get_hash_value(w.start, w.empty_cells)
+                self.path_cache[hash_value] = w.path
+            cur_max_p = max([len(i) - 1 for i in self.path_cache.values()])
+            MAX_VAR_V = np.var([0] * (self.n_agent - 1) + [cur_max_p])
+            State.MAX_VAR_V = MAX_VAR_V
+            cur_state = State(self.watchmen, h=self.h, w=self.w)
+            if self.params['visualize']:
+                self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
+            best_state = cur_state
 
-                # initial stage
-                self.initialize()
-                # initial_time = time.perf_counter() - start
-                # print("initialization complete! time:{} s,".format(initial_time))
-                class_ = self.clustering()
-                self.watchmen_init(class_)
-                for w in self.watchmen:
-                    w.path = self.solve_WRP(w)
-                    hash_value = self.get_hash_value(w.start, w.empty_cells)
-                    self.path_cache[hash_value] = w.path
-                cur_max_p = max([len(i) - 1 for i in self.path_cache.values()])
-                MAX_VAR_V = np.var([0] * (self.n_agent - 1) + [cur_max_p])
-                State.MAX_VAR_V = MAX_VAR_V
-                cur_state = State(self.watchmen, h=self.h, w=self.w)
-                if self.params['visualize']:
-                    self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
-                best_state = cur_state
-
-                # improve stage
-                max_iter = 300
-                early_stop = 0
-                tolerant = 10
-                for loop in range(max_iter):  # loop until result converges
-                    self.next_step(cur_state)
-                    if self.pq_l2.is_empty():
+            # improve stage
+            max_iter = 300
+            early_stop = 0
+            tolerant = 10
+            for loop in range(max_iter):  # loop until result converges
+                self.next_step(cur_state)
+                if self.pq_l2.is_empty():
+                    break
+                cur_state = self.pq_l2.pop_()
+                if best_state.f_v >= cur_state.f_v:  # 停止条件需要接着优化
+                    best_state = cur_state
+                else:
+                    early_stop += 1
+                    if early_stop == tolerant:
+                        print("result has been stable, early stop!!")
                         break
-                    cur_state = self.pq_l2.pop_()
-                    if best_state.f_v >= cur_state.f_v:  # 停止条件需要接着优化
-                        best_state = cur_state
-                    else:
-                        early_stop += 1
-                        if early_stop == tolerant:
-                            print("result has been stable, early stop!!")
-                            break
-                    # self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
-                # assert self.check_finish(best_state.get_paths()), "wrong answer！"
-                if self.params['visualize']:
-                    self.visualize(list(best_state.get_paths().values()),
-                                   class_=best_state.get_class(no_obstacles=True))
-                # log
-                paths_length = list(best_state.get_paths(only_length=True).values())
-                max_paths_len.append(max(paths_length) - 1)
-                if self.params['write_to_file']:
-                    f.write(f"round{i}:start_pos:{self.start}, paths length:{paths_length}, min_sum:{sum(paths_length)}"
-                            f", min_max:{max(paths_length)}\n")
-                self.restart()
+                # self.visualize(list(cur_state.get_paths().values()), class_=cur_state.get_class(no_obstacles=True))
+            # assert self.check_finish(best_state.get_paths()), "wrong answer！"
+            if self.params['visualize']:
+                self.visualize(list(best_state.get_paths().values()),
+                               class_=best_state.get_class(no_obstacles=True))
+            # log
+            paths_length = list(best_state.get_paths(only_length=True).values())
+            minmax = max(paths_length)
+            minsum = sum(paths_length)
+            max_paths_len.append(minmax)
+            sum_paths_len.append(minsum)
+            if self.params['write_to_file']:
+                f.write(f"round{i}:running time: {round(time.perf_counter()-round_start,3)}, "
+                        f"start_pos:{self.start}, paths length:{paths_length}, min_sum:{minsum}"
+                        f", min_max:{minmax}\n")
+            self.restart()
 
-            except Exception as e:
-                print(f"----------main program wrong:{e}")
-                self.restart()
-                continue
-        total_time = time.perf_counter() - start
+            # except Exception as e:
+            #     print(f"----------main program wrong:{e}")
+            #     self.restart()
+            #     continue
+        running_time = time.perf_counter() - start_time - pre_pro_time
         expansion = self.nodes / test_times
         successful = len(max_paths_len)
         avg_max_paths_len = round(np.mean(max_paths_len), 3)
-        paths_len_std = round(np.std(max_paths_len), 3)
-        per_exe_time = total_time/successful
-        string = "total time:{:.3f}s, expansion:{}, successful time:{}, " \
-                 "avg_max_paths_len+std:{:.3f}±{:.3f}, per_exe_time:{}\n".format(total_time, expansion,
-                                                                                 len(max_paths_len), avg_max_paths_len,
-                                                                                 paths_len_std, per_exe_time)
+        avg_sum_paths_len = round(np.mean(sum_paths_len), 3)
+        minmax_std = round(np.std(max_paths_len), 3)
+        minsum_std = round(np.std(sum_paths_len), 3)
+        per_exe_time = running_time/successful
+        string = "pre-processing time:{:.3f}s, running time:{:.3f}s, expansion:{}, successful time:{}, " \
+                 "avg_max_paths_len+std:{:.3f}±{:.3f}, avg_sum_paths_len+std:{:.3f}±{:.3f}" \
+                 ",per_exe_time:{}\n".format(pre_pro_time, running_time, expansion, len(max_paths_len),
+                                            avg_max_paths_len, minmax_std,
+                                            avg_sum_paths_len, minsum_std,
+                                            per_exe_time)
+        print(string)
         if self.params['write_to_file']:
             f.write(string)
             f.close()
-        return_dict = {"total_time": total_time, "expansion": expansion,
-                       "avg_max_paths_len": avg_max_paths_len, "paths_len_std": paths_len_std}
+        return_dict = {"pre-processing time": pre_pro_time, "total_time": running_time, "expansion": expansion,
+                       "avg_max_paths_len": avg_max_paths_len, "avg_sum_paths_len": avg_sum_paths_len,
+                       "minmax_std": minmax_std,
+                       "minsum_std": minsum_std}
         return return_dict
 
     def watchmen_init(self, class_):
@@ -357,11 +368,11 @@ class MWRP:
                 for nxt_cell in candidate:
                     cls_2s = np.where(clustering[nxt_cell] != 0)[0]
                     for cls_2 in cls_2s:
-                        assign_code = f"{cell}_{cls_1}_{cls_2}"
-                        if assigned.get(assign_code, 0):  # if exists, skip
-                            continue
-                        # print(f"cell:{cell}， class:{cls_1}", f"|nxt_cell:{nxt_cell},class:{cls_2}")
-                        assigned[assign_code] = 1
+                        if self.params["hash_structure"]:
+                            assign_code = f"{cell}_{cls_1}_{cls_2}"
+                            if assigned.get(assign_code, 0):  # if exists, skip
+                                continue
+                            assigned[assign_code] = 1
                         watchman_2 = cur_state.get_watchman(cls_2)
                         path_len_cls_2 = watchman_2.get_path_len()
                         # do assignment only when path of cls_1 longer than path of cls_2
@@ -391,6 +402,7 @@ class MWRP:
                             new_path_cls_1 = path_cls_1[:cell_idx_in_path[0]] + \
                                              path_cls_1[cell_idx_in_path[1] + 1:]
                         else:  # too many times, give up assigning
+                            print("！！！！！")
                             continue
                         """
                         确认连通性, 如果存在以下情况，则去掉当前点即可，后续路径保留
@@ -398,6 +410,9 @@ class MWRP:
                         is_next_2.除了当前点外，关联的后续路径以及他们牵连到的cell中，与agent剩余cell
                         能够找到连接点
                         """
+                        start_code = self.encode(watchman_1.start[0], watchman_1.start[1])
+                        if start_code in need_to_assigns:
+                            need_to_assigns.pop(start_code)  # start point is not allowed to assign
                         if len(need_to_assigns) > 1:
                             if is_next_1(need_to_assigns, new_path_cls_1) or \
                                     is_next_2(need_to_assigns, watchman_1):
@@ -406,16 +421,19 @@ class MWRP:
                         ---------condition2---------------
                         assess the improvement of f_v, if no improvement, skip
                         """
-                        epsilon = 1.5
-                        pre_f_v = cur_state.f_v
-                        post_paths = cur_state.get_paths(only_length=True)
-                        post_paths[cls_1] -= len(need_to_assigns)
-                        # need to consider the duplication when calc estimated length of cls_2
-                        post_paths[cls_2] += len(set(need_to_assigns) - watchman_2.empty_cells)
-                        post_f_v = State.calc_f_v(post_paths)
+                        if self.params["pre-pruning"]:
+                            epsilon = 1.5
+                            pre_f_v = cur_state.f_v
+                            post_paths = cur_state.get_paths(only_length=True)
+                            post_paths[cls_1] -= len(need_to_assigns)
+                            # need to consider the duplication when calc estimated length of cls_2
+                            post_paths[cls_2] += len(set(need_to_assigns) - watchman_2.empty_cells)
+                            post_f_v = State.calc_f_v(post_paths)
 
-                        if post_f_v / pre_f_v >= epsilon:
-                            continue
+                            if post_f_v / pre_f_v >= epsilon:
+                                continue
+                        print(f"cell:{cell}， class:{cls_1}", f"|nxt_cell:{nxt_cell},class:{cls_2}")
+                        self.show_real_pos([cell, nxt_cell])
                         # path_to_closest_idx also need to assign
                         need_to_assigns = set(need_to_assigns)
                         need_to_assigns |= path_to_closest_idx
@@ -430,7 +448,6 @@ class MWRP:
                         outliers = watchman_1.empty_cells - new_can_reach
                         need_to_assigns |= outliers
 
-                        start_code = self.encode(watchman_1.start[0], watchman_1.start[1])
                         if start_code in need_to_assigns:
                             need_to_assigns -= {start_code}  # start point is not allowed to assign
                         # adjust new watchmen empty cell and edge_list
@@ -498,7 +515,7 @@ class MWRP:
     def decode(self, code):
         return code // self.w, code % self.w
 
-    def initialize(self):
+    def preprocessing(self):
         """
         prepare two lookup tables for efficiency
         self.LOS, self.empty_cells, self.APSP, self.APSP_d, self.edge_list
@@ -539,6 +556,16 @@ class MWRP:
                 self.APSP[b, a] = self.APSP[a, b]
                 self.APSP_d[[a, b], [b, a]] = int(dist_matrix[a, b])
         del temp_list, dist_matrix, predecessors
+
+        # initialize
+        self.params["LOS"] = self.LOS
+        self.params["empty_cells"] = self.empty_cells
+        self.params["APSP"] = self.APSP
+        self.params["APSP_d"] = self.APSP_d
+        self.params["edge_list"] = self.edge_list
+        print("preprocessing complete!")
+
+    def choose_start_pos(self):
         # generate start_pos
         if not self.start:
             cand_start = np.random.choice(list(self.empty_cells), self.n_agent, replace=False)
@@ -548,12 +575,6 @@ class MWRP:
         for i in range(self.n_agent):
             x, y = self.start[i]
             assert self.map[x, y] == 0, "出发点不符合条件"
-        # initialize
-        self.params["LOS"] = self.LOS
-        self.params["empty_cells"] = self.empty_cells
-        self.params["APSP"] = self.APSP
-        self.params["APSP_d"] = self.APSP_d
-        self.params["edge_list"] = self.edge_list
 
     def get_path_from_pred(self, pred_m, start, end):
         path = [end]
@@ -614,7 +635,6 @@ class MWRP:
         plt.matshow(-self.map, cmap=plt.cm.hot)
         mat_w, mat_h = len(self.map[0]), len(self.map)
         self.plot_lines(mat_w, mat_h)
-
         # plot cluster
         axis_x, axis_y = [], []
         for i in sorted(list(self.empty_cells)):  # have deleted the obstacle cells
@@ -677,14 +697,20 @@ def main():
     """
     DF: normal 2
     """
-    # path = "../maps"
+
     # files = os.listdir(path)
-    file_name = "../maps/4_11d.txt"
-    map = read_map(file_name)
+    file_name = "2_maze_21d.txt"
+    path = f"../maps/{file_name}"
+    map = read_map(path)
     results = []
+    test_time = 1
+    start = None
+    start = [(0, 7), (20, 6), (11, 16), (15, 2)]
     for combi in product(optional_params['f_weight'], optional_params['IW'], optional_params['WR'],
                          optional_params['n_agent'],
-                         optional_params['heuristic']):
+                         optional_params['heuristic'],
+                         optional_params['hash_structure'],
+                         optional_params['pre-pruning']):
         my_params = {"f_weight": combi[0],
                      "f_option": "WA",
                      "DF_factor": 2,
@@ -692,20 +718,22 @@ def main():
                      "WR": combi[2],
                      "n_agent": combi[3],
                      "heuristic": combi[4],
+                     "hash_structure": combi[5],
+                     "pre-pruning": combi[6],
                      "write_to_file": False,
-                     "test_time": 1,
-                     # "start": None,
-                     "start": [(2, 1), (14, 11), (11, 0), (12, 4), (16, 0)],
                      "verbose": True,
                      "visualize": True}
-        sol = MWRP(map, **my_params)
+        sol = MWRP(map, start, **my_params)
         optional = optional_params.keys()
-        result_dict = sol.run(my_params['test_time'])
+        result_dict = sol.run(test_time)
         results.append([my_params[o] for o in optional] + list(result_dict.values()))
-    my_columns = ["f_weight", "IW", "WR", "n_agent", "heuristic", "total_time", "expands", "avg_max_paths",
-                  "paths_len_std"]
+    my_columns = ["f_weight", "IW", "WR", "n_agent", "heuristic", "hash_structure", "pre-pruning",
+                  "pre-processing_time", "running_time", "expands", "avg_max_paths", "avg_sum_paths",
+                  "minmax_std", "minsum_std"]
     my_results = pd.DataFrame(results, columns=my_columns)
     my_results.to_excel("../results/experiment.xlsx")
 
 
+
 main()
+# os.system('shutdown -s -t 1')

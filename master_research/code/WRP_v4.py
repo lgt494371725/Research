@@ -382,7 +382,7 @@ def main():
     os.chdir(path)
     for file in files:
         print(file)
-        # start, map = read_map(file)
+        start, map = read_map(file)
         test_times = 1
         sol = WatchmanRouteProblem(map, start)
         sol.run(test_times)

@@ -40,5 +40,5 @@ def read_map(path):
     print(f"obstacle number:{number}")
     return np.array(matrix)
 
-map = read_map(r"C:\Users\18959\OneDrive - The University of Tokyo\research\master_research\maps\13d.txt")
+map = read_map(r"C:\Users\18959\OneDrive - The University of Tokyo\research\master_research\maps\0_lak101d.map")
 visualize(map)

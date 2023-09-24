@@ -357,6 +357,7 @@ class MWRP:
                         return True
             return False
 
+
         tolerance_size = 0
         clustering = cur_state.get_class()
         assigned = {}
@@ -372,6 +373,7 @@ class MWRP:
                             assign_code = f"{cell}_{cls_1}_{cls_2}"
                             if assigned.get(assign_code, 0):  # if exists, skip
                                 continue
+                        # print(f"cell:{cell}， class:{cls_1}", f"|nxt_cell:{nxt_cell},class:{cls_2}")
                             assigned[assign_code] = 1
                         watchman_2 = cur_state.get_watchman(cls_2)
                         path_len_cls_2 = watchman_2.get_path_len()
@@ -402,17 +404,17 @@ class MWRP:
                             new_path_cls_1 = path_cls_1[:cell_idx_in_path[0]] + \
                                              path_cls_1[cell_idx_in_path[1] + 1:]
                         else:  # too many times, give up assigning
-                            print("！！！！！")
                             continue
                         """
                         确认连通性, 如果存在以下情况，则去掉当前点即可，后续路径保留
                         is_next_1.后续路径与剩余的路径有接点(如走到当前点又回头了)
                         is_next_2.除了当前点外，关联的后续路径以及他们牵连到的cell中，与agent剩余cell
                         能够找到连接点
+                        如果被分配的路径中包含起点，放弃分配
                         """
                         start_code = self.encode(watchman_1.start[0], watchman_1.start[1])
                         if start_code in need_to_assigns:
-                            need_to_assigns.pop(start_code)  # start point is not allowed to assign
+                            continue   # 放弃分配
                         if len(need_to_assigns) > 1:
                             if is_next_1(need_to_assigns, new_path_cls_1) or \
                                     is_next_2(need_to_assigns, watchman_1):
@@ -432,8 +434,6 @@ class MWRP:
 
                             if post_f_v / pre_f_v >= epsilon:
                                 continue
-                        print(f"cell:{cell}， class:{cls_1}", f"|nxt_cell:{nxt_cell},class:{cls_2}")
-                        self.show_real_pos([cell, nxt_cell])
                         # path_to_closest_idx also need to assign
                         need_to_assigns = set(need_to_assigns)
                         need_to_assigns |= path_to_closest_idx
@@ -654,7 +654,7 @@ class MWRP:
                 color_code = classes[0]
                 color_set.append(plt.cm.Set1(color_code))  # Set1有取值范围[0,7]
 
-        plt.scatter(axis_y, axis_x, c=color_set, s=100, alpha=0.4)  # attention! x and y are reversed!
+        plt.scatter(axis_y, axis_x, c=color_set, s=100, alpha=0.5)  # attention! x and y are reversed!
 
         # plot path for every agent
         for i, path in enumerate(paths):
@@ -699,13 +699,13 @@ def main():
     """
 
     # files = os.listdir(path)
-    file_name = "2_maze_21d.txt"
+    file_name = "4_11d.txt"
     path = f"../maps/{file_name}"
     map = read_map(path)
     results = []
     test_time = 1
     start = None
-    start = [(0, 7), (20, 6), (11, 16), (15, 2)]
+    start = [(0, 0), (2, 1), (8, 3), (10, 10)]
     for combi in product(optional_params['f_weight'], optional_params['IW'], optional_params['WR'],
                          optional_params['n_agent'],
                          optional_params['heuristic'],

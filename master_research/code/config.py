@@ -3,10 +3,10 @@ heuristic: TSP,MST,agg_h, None
 start: give the pos responding to n_agent
 """
 optional_params = {"f_weight": [1],
-                   "IW": [True],
-                   "WR": [True],
+                   "IW": [False],
+                   "WR": [False],
                    "n_agent": [4],
-                   "heuristic": ["MST"],
+                   "heuristic": ["agg_h"],
                    "hash_structure": [True],
                    "pre-pruning": [True]
                    }
